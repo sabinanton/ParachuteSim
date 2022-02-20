@@ -64,7 +64,7 @@ class Canopy:
     using the Euler time integration method
     """
 
-    def __init__(self, X, Y, Z, canopy_material, reinforcement_material, suspension_material, reinforcement_width, num_sus, dp):
+    def __init__(self, X, Y, Z, canopy_material, reinforcement_material, suspension_material, reinforcement_width, num_sus, num_gores, dp):
 
         """
         This constructor initializes the spring constants of the mass-spring system based on the E-modulus and geometry of the fishing net.
@@ -94,6 +94,7 @@ class Canopy:
         self.Vz = np.zeros(X.shape)
         self.porosity = canopy_material.porosity
         self.NumSus = num_sus
+        self.NumGores = num_gores
         self.Color = np.zeros(self.X.shape)
         self.Nx, self.Ny = X.shape
         self.RWidth = reinforcement_width
@@ -311,7 +312,7 @@ class Canopy:
         Vz = self.Vz
         g0 = 0
         gz = np.ones(self.M.shape) * g0
-        C = 3 / X.shape[0] / X.shape[1]
+        C = 1.5 / X.shape[0] / X.shape[1]
 
         XN, XS, XE, XW, XNE, XNW, XSE, XSW, XNN, XSS, XEE, XWW = createNeighbours(X)
         YN, YS, YE, YW, YNE, YNW, YSE, YSW, YNN, YSS, YEE, YWW = createNeighbours(Y)
@@ -366,7 +367,7 @@ class Canopy:
         self.Color[-RNumWidthNS:, :] = 1
         self.Color[0:RNumWidthNS, :] = 1
 
-        Sus_Index = np.linspace(0, len(X[0]), self.NumSus + 1)
+        Sus_Index = np.linspace(0, len(X[0]), self.NumGores + 1)
         Sus_Index = np.array(Sus_Index[:-1], int)
 
         for i in Sus_Index[:-1]:
@@ -445,10 +446,10 @@ class Canopy:
         FeNS = Fe(StrainNS, self.ECoeffAx) / 0.5 / (self.LN0 + self.LS0)
         FeEW = Fe(StrainEW, self.ECoeffAx) / 0.5 / (self.LE0 + self.LW0)
         FeTot = Fe(Strain, self.ECoeffAx)
-        StressNS = FeNS / (0.5*(self.LE0 + self.LW0)) / self.DFiber
+        StressNS = FeNS / self.DFiber
         StressNS[0, :] = StressNS[1, :].copy()
         StressNS[-1, :] = StressNS[-2, :].copy()
-        StressEW = FeEW / (0.5*(self.LN0 + self.LS0)) / self.DFiber
+        StressEW = FeEW / self.DFiber
         StressEW[0, :] = StressEW[1, :].copy()
         StressEW[-1, :] = StressEW[-2, :].copy()
 
@@ -919,11 +920,12 @@ class Rope:
 
 class Parachute:
 
-    def __init__(self, disks, bands, num_suspension, suspension_length, reinforcement, disk_res, band_res, sus_res, ang_res, canopy_material, sus_line_material, reinforcement_material, dp_initial, closed_radius):
+    def __init__(self, disks, bands, num_suspension, num_gores, suspension_length, reinforcement, disk_res, band_res, sus_res, ang_res, canopy_material, sus_line_material, reinforcement_material, dp_initial, closed_radius):
         self.Disks = []
         self.Bands = []
         self.SuspensionLines = []
         self.NumSus = num_suspension
+        self.NumGores = num_gores
         self.CanopyMat = canopy_material
         self.SusMat = sus_line_material
         self.BandMat = canopy_material
@@ -951,7 +953,7 @@ class Parachute:
             X = (R_folded * np.cos(Theta)).T
             Z = (R_folded * np.sin(Theta)).T
             Y = (-(R_d - R_v - R) * (1 - (r_d / R_d)**2)**0.5).T
-            Disk = Canopy(X, Y, Z, canopy_material, reinforcement_material, sus_line_material, reinforcement, num_suspension, dp_initial)
+            Disk = Canopy(X, Y, Z, canopy_material, reinforcement_material, sus_line_material, reinforcement, num_suspension, num_gores, dp_initial)
             self.Disks.append(Disk)
         for i in range(len(bands)):
             Nang = ang_res
@@ -969,7 +971,7 @@ class Parachute:
             y = np.linspace(bands[i][0], bands[i][1], band_res[i])
             X, Y = np.meshgrid(x, y)
             Z, Y = np.meshgrid(z, y)
-            Band = Canopy(X, Y, Z, canopy_material, reinforcement_material, sus_line_material, reinforcement, num_suspension, dp_initial * ratio)
+            Band = Canopy(X, Y, Z, canopy_material, reinforcement_material, sus_line_material, reinforcement, num_suspension, num_gores, dp_initial * ratio)
             self.Bands.append(Band)
         Sus_Index = np.linspace(0, ang_res, Num_Suspension + 1)
         self.Sus_Index = np.array(Sus_Index, int)[:-1]
@@ -1025,7 +1027,7 @@ class Parachute:
 
         plt.colorbar(scamap, orientation='vertical', label='Radial Stress [Mpa]', fraction=0.046, pad=0.04)
         plt.savefig('frames/' + str(frame) + '.png', dpi=400)
-        plt.show()
+        # plt.show()
         plt.close()
 
     def plotDrag(self, frame, time, Drag):
@@ -1688,14 +1690,14 @@ class Parachute:
             X = np.zeros((4, 4))
             Y = np.zeros((4, 4))
             Z = np.zeros((4, 4))
-            disk = Canopy(X, Y, Z, self.CanopyMat, self.ReinfMat, self.SusMat, self.ReinfWidth, self.NumSus, self.dp)
+            disk = Canopy(X, Y, Z, self.CanopyMat, self.ReinfMat, self.SusMat, self.ReinfWidth, self.NumSus, self.NumGores, self.dp)
             disk.open(name + '/' + diskName)
             self.Disks.append(disk)
         for bandName in bandNames:
             X = np.zeros((4, 4))
             Y = np.zeros((4, 4))
             Z = np.zeros((4, 4))
-            band = Canopy(X, Y, Z, self.CanopyMat, self.ReinfMat, self.SusMat, self.ReinfWidth, self.NumSus, self.dp)
+            band = Canopy(X, Y, Z, self.CanopyMat, self.ReinfMat, self.SusMat, self.ReinfWidth, self.NumSus, self.NumGores, self.dp)
             band.open(name + '/' + bandName)
             self.Bands.append(band)
         for i in range(len(lineNames)):
@@ -1771,7 +1773,7 @@ class Parachute:
             band.dP = -dP
 
 
-RipNylon = Canopy_Material(2.7e6, 0.048, [15781, 506452], [0], 0.5e-3, 0.8)
+RipNylon = Canopy_Material(2.7e6, 0.048, [15781, 506452], [0], 0.5e-3, 0.95)
 Aramid = Suspension_Material(3.4e6, 0.05, [6249.42, -1184.1, 179.7], 0.5e-3)
 Spectra = Suspension_Material(1.1e7, 0.0027, [5380.3, -967333.5, 167075000], 4e-3)
 
@@ -1781,6 +1783,7 @@ Bands = [[0.062, 0.062 + 0.293]]
 #Bands = []
 Suspension_Length = 1.5
 Num_Suspension = 18
+Num_Gores = 6
 Reinforcement_Width = 15e-3
 #Disk_Resolution = [120]
 Disk_Resolution = [70]
@@ -1790,19 +1793,13 @@ Sus_Resolution = [3, 15]
 
 initial_pressure = 570
 
-T = 0.008
-Nt = 6000
-frames = 20
+T = 0.08
+Nt = 60000
+frames = 200
 
-parachute = Parachute(Disks, Bands, Num_Suspension, Suspension_Length, Reinforcement_Width, Disk_Resolution, Band_Resolution, Sus_Resolution, Angular_Resolution, RipNylon,
+parachute = Parachute(Disks, Bands, Num_Suspension, Num_Gores, Suspension_Length, Reinforcement_Width, Disk_Resolution, Band_Resolution, Sus_Resolution, Angular_Resolution, RipNylon,
                       Spectra, Aramid, initial_pressure, 0.1)
-parachute.importParachute('SPEARIIChuteScaled_Closed')
-parachute.importP('p', [100, 200, 100], [[-1.5, 1.5], [-3, 3], [-1.5, 1.5]])
+#parachute.importParachute('SPEARIIChuteScaled_Closed')
+# parachute.importP('p', [100, 200, 100], [[-1.5, 1.5], [-3, 3], [-1.5, 1.5]])
 parachute.solver(T, Nt, frames)
 parachute.saveParachute('SPEARIIChuteScaled_Closed')
-norm = parachute.computeNormals()
-OpenFOAM.createPorosityProperties(norm, [0, 0, 0], [150, 10000, 150])
-OpenFOAM.createFvOptions(len(norm[0]))
-OpenFOAM.createTopoSet(len(norm[0]))
-
-parachute.saveSTLs('SPEARIIChuteScaled_Closed_STL')
