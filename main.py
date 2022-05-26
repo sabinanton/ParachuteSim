@@ -382,42 +382,42 @@ class Parachute:
 
 
 
-
-D_disk = 1.0036
-D_vent = 0.1
-H_gap = 0.062
-# H_gap = 0.055323
-H_band = 0.293
-# H_band = 0.46
-L_sus = 1.328
-
-k_disk = 39275  # Nylon F111 canopy
-k_band = 39275  # Nylon F111 canopy
-k_sus = 84034.5  # Twaron CopSub
-k_reinf = 84034.5  # Twaron CopSub
-
-N_sus = 6
-
-Num_sus = 8
-Num_band = 10
-Num_gap = 5
-Num_disk = 20
-Num_vent = 5
-
-Nt = 200000
-T = 2
-
-d_pressure = 45
-
-par = Parachute()
-par.create_parachute(D_disk, D_vent, H_gap, H_band, L_sus, Num_sus, Num_band, Num_gap, Num_disk, Num_vent, k_disk, k_reinf, k_sus, N_sus, d_pressure)
-par.importParachute("parachute.csv")
-norm = par.Normals()
-OpenFOAM.createPorosityProperties(norm, [0, 0, 0], [150, 10000, 150])
-OpenFOAM.createFvOptions(len(norm[0])+1)
-OpenFOAM.createTopoSet(len(norm[0])+1)
-par.importPressure("p", [800, 800], [[-3, 3], [-3, 3]])
-print("The Cd is", par.Cd(1.225, 30, D_disk))
-par.simulate(k_reinf, d_pressure, Nt, T)
-
-par.saveSTL(thickness=1.0)
+#
+# D_disk = 1.0036
+# D_vent = 0.1
+# H_gap = 0.062
+# # H_gap = 0.055323
+# H_band = 0.293
+# # H_band = 0.46
+# L_sus = 1.328
+#
+# k_disk = 39275  # Nylon F111 canopy
+# k_band = 39275  # Nylon F111 canopy
+# k_sus = 84034.5  # Twaron CopSub
+# k_reinf = 84034.5  # Twaron CopSub
+#
+# N_sus = 6
+#
+# Num_sus = 8
+# Num_band = 10
+# Num_gap = 5
+# Num_disk = 20
+# Num_vent = 5
+#
+# Nt = 200000
+# T = 2
+#
+# d_pressure = 45
+#
+# par = Parachute()
+# par.create_parachute(D_disk, D_vent, H_gap, H_band, L_sus, Num_sus, Num_band, Num_gap, Num_disk, Num_vent, k_disk, k_reinf, k_sus, N_sus, d_pressure)
+# par.importParachute("parachute.csv")
+# norm = par.Normals()
+# OpenFOAM.createPorosityProperties(norm, [0, 0, 0], [150, 10000, 150])
+# OpenFOAM.createFvOptions(len(norm[0])+1)
+# OpenFOAM.createTopoSet(len(norm[0])+1)
+# par.importPressure("p", [800, 800], [[-3, 3], [-3, 3]])
+# print("The Cd is", par.Cd(1.225, 30, D_disk))
+# par.simulate(k_reinf, d_pressure, Nt, T)
+#
+# par.saveSTL(thickness=1.0)

@@ -32,7 +32,7 @@ def Fe(X, const):
     Force = np.zeros(X.shape)
     sgn = np.sign(X)
     for i in range(len(const)):
-        Force += const[i] * np.abs(X) ** (i + 1)
+        Force += const[i] * np.abs(X) ** (i+1)
     Force *= sgn
     return Force
 
@@ -63,7 +63,7 @@ class Canopy:
     using the Euler time integration method
     """
 
-    def __init__(self, X, Y, Z, canopy_material, reinforcement_material, suspension_material, reinforcement_width, num_sus, num_gores, dp):
+    def __init__(self, Xui, Yui, Zui, X, Y, Z, canopy_material, reinforcement_material, suspension_material, reinforcement_width, num_sus, num_gores, dp):
 
         """
         This constructor initializes the spring constants of the mass-spring system based on the E-modulus and geometry of the fishing net.
@@ -85,6 +85,7 @@ class Canopy:
         self.E_fabric = canopy_material.E_fibre * np.pi / 4
         E_fabric = self.E_fabric
         self.DFiber = canopy_material.D_fibre
+        self.DFiber_Reinf = reinforcement_material.D_fibre
         self.X = X
         self.Y = Y
         self.Z = Z
@@ -103,19 +104,19 @@ class Canopy:
         self.ECoeffReinfDiag = reinforcement_material.ElDiag
         self.ECoeffSus = suspension_material.ElAx
         self.sus_rho = suspension_material.rho
-        XN, XS, XE, XW, XNE, XNW, XSE, XSW, XNN, XSS, XEE, XWW = createNeighbours(self.X)
-        YN, YS, YE, YW, YNE, YNW, YSE, YSW, YNN, YSS, YEE, YWW = createNeighbours(self.Y)
-        ZN, ZS, ZE, ZW, ZNE, ZNW, ZSE, ZSW, ZNN, ZSS, ZEE, ZWW = createNeighbours(self.Z)
+        XN, XS, XE, XW, XNE, XNW, XSE, XSW, XNN, XSS, XEE, XWW = createNeighbours(Xui)
+        YN, YS, YE, YW, YNE, YNW, YSE, YSW, YNN, YSS, YEE, YWW = createNeighbours(Yui)
+        ZN, ZS, ZE, ZW, ZNE, ZNW, ZSE, ZSW, ZNN, ZSS, ZEE, ZWW = createNeighbours(Zui)
 
-        dXN, dXS, dXE, dXW = XN - X, XS - X, XE - X, XW - X
-        dYN, dYS, dYE, dYW = YN - Y, YS - Y, YE - Y, YW - Y
-        dZN, dZS, dZE, dZW = ZN - Z, ZS - Z, ZE - Z, ZW - Z
-        dXNE, dXNW, dXSE, dXSW = XNE - X, XNW - X, XSE - X, XSW - X
-        dYNE, dYNW, dYSE, dYSW = YNE - Y, YNW - Y, YSE - Y, YSW - Y
-        dZNE, dZNW, dZSE, dZSW = ZNE - Z, ZNW - Z, ZSE - Z, ZSW - Z
-        dXNN, dXSS, dXEE, dXWW = XNN - X, XSS - X, XEE - X, XWW - X
-        dYNN, dYSS, dYEE, dYWW = YNN - Y, YSS - Y, YEE - Y, YWW - Y
-        dZNN, dZSS, dZEE, dZWW = ZNN - Z, ZSS - Z, ZEE - Z, ZWW - Z
+        dXN, dXS, dXE, dXW = XN - Xui, XS - Xui, XE - Xui, XW - Xui
+        dYN, dYS, dYE, dYW = YN - Yui, YS - Yui, YE - Yui, YW - Yui
+        dZN, dZS, dZE, dZW = ZN - Zui, ZS - Zui, ZE - Zui, ZW - Zui
+        dXNE, dXNW, dXSE, dXSW = XNE - Xui, XNW - Xui, XSE - Xui, XSW - Xui
+        dYNE, dYNW, dYSE, dYSW = YNE - Yui, YNW - Yui, YSE - Yui, YSW - Yui
+        dZNE, dZNW, dZSE, dZSW = ZNE - Zui, ZNW - Zui, ZSE - Zui, ZSW - Zui
+        dXNN, dXSS, dXEE, dXWW = XNN - Xui, XSS - Xui, XEE - Xui, XWW - Xui
+        dYNN, dYSS, dYEE, dYWW = YNN - Yui, YSS - Yui, YEE - Yui, YWW - Yui
+        dZNN, dZSS, dZEE, dZWW = ZNN - Zui, ZSS - Zui, ZEE - Zui, ZWW - Zui
 
         self.LN0 = (dXN ** 2 + dYN ** 2 + dZN ** 2) ** 0.5
         self.LS0 = (dXS ** 2 + dYS ** 2 + dZS ** 2) ** 0.5
@@ -129,6 +130,7 @@ class Canopy:
         self.LSS0 = (dXSS ** 2 + dYSS ** 2 + dZSS ** 2) ** 0.5
         self.LEE0 = (dXEE ** 2 + dYEE ** 2 + dZEE ** 2) ** 0.5
         self.LWW0 = (dXWW ** 2 + dYWW ** 2 + dZWW ** 2) ** 0.5
+
 
         self.LNE0[-1, :] = self.LNE0[-2, :]
         self.LNW0[-1, :] = self.LNW0[-2, :]
@@ -155,13 +157,20 @@ class Canopy:
         self.rho = canopy_material.rho
         self.reinf_rho = reinforcement_material.rho
         self.dP = np.ones(X.shape) * dp
-        RNumWidthNS = 1
+        self.RNumWidthNS = 1
         if np.average((self.LE0 + self.LW0) * 0.5) != 0:
-            RNumWidthNS = max(int(self.RWidth / (np.average((self.LE0 + self.LW0) * 0.5))), 1)
+            self.RNumWidthNS = max(int(self.RWidth / (np.average((self.LE0 + self.LW0) * 0.5))), 1)
+        if np.average((self.LN0 + self.LS0) * 0.5) != 0:
+            self.RNumWidthEW = max(int(self.RWidth / (np.average((self.LN0 + self.LS0) * 0.5))), 1) + 1
+
+        self.Sus_Index = np.linspace(0, len(X[0]), self.NumSus + 1)
+        self.Sus_Index = np.array(self.Sus_Index[:-1], int)
+        offset = int(self.NumSus / self.NumGores)
+        self.Gore_Index = self.Sus_Index[::offset]
 
         self.M = 0.5 * (self.LN0 + self.LS0) * 0.5 * (self.LE0 + self.LW0) * canopy_material.rho * np.pi / 4 * self.porosity
-        self.M[:RNumWidthNS, :] += (0.5 * (self.LN0 + self.LS0) * 0.5 * (self.LE0 + self.LW0) * self.reinf_rho * np.pi / 4)[:RNumWidthNS, :]
-        self.M[-RNumWidthNS:, :] += (0.5 * (self.LN0 + self.LS0) * 0.5 * (self.LE0 + self.LW0) * self.reinf_rho * np.pi / 4)[-RNumWidthNS:, :]
+        self.M[:self.RNumWidthNS, :] += (0.5 * (self.LN0 + self.LS0) * 0.5 * (self.LE0 + self.LW0) * self.reinf_rho * np.pi / 4)[:self.RNumWidthNS, :]
+        self.M[-self.RNumWidthNS:, :] += (0.5 * (self.LN0 + self.LS0) * 0.5 * (self.LE0 + self.LW0) * self.reinf_rho * np.pi / 4)[-self.RNumWidthNS:, :]
         self.computeNormals()
 
     def computeNormals(self):
@@ -330,10 +339,15 @@ class Canopy:
         g0 = 0
         gz = np.ones(self.M.shape) * g0
         C = 1 / X.shape[0] / X.shape[1]
+        CGl = 2 / X.shape[0] / X.shape[1]
 
         XN, XS, XE, XW, XNE, XNW, XSE, XSW, XNN, XSS, XEE, XWW = createNeighbours(X)
         YN, YS, YE, YW, YNE, YNW, YSE, YSW, YNN, YSS, YEE, YWW = createNeighbours(Y)
         ZN, ZS, ZE, ZW, ZNE, ZNW, ZSE, ZSW, ZNN, ZSS, ZEE, ZWW = createNeighbours(Z)
+
+        VXN, VXS, VXE, VXW, VXNE, VXNW, VXSE, VXSW, VXNN, VXSS, VXEE, VXWW = createNeighbours(Vx)
+        VYN, VYS, VYE, VYW, VYNE, VYNW, VYSE, VYSW, VYNN, VYSS, VYEE, VYWW = createNeighbours(Vy)
+        VZN, VZS, VZE, VZW, VZNE, VZNW, VZSE, VZSW, VZNN, VZSS, VZEE, VZWW = createNeighbours(Vz)
 
         dXN, dXS, dXE, dXW = XN - X, XS - X, XE - X, XW - X
         dYN, dYS, dYE, dYW = YN - Y, YS - Y, YE - Y, YW - Y
@@ -344,6 +358,17 @@ class Canopy:
         dXNN, dXSS, dXEE, dXWW = XNN - X, XSS - X, XEE - X, XWW - X
         dYNN, dYSS, dYEE, dYWW = YNN - Y, YSS - Y, YEE - Y, YWW - Y
         dZNN, dZSS, dZEE, dZWW = ZNN - Z, ZSS - Z, ZEE - Z, ZWW - Z
+
+        dVXN, dVXS, dVXE, dVXW = VXN - Vx, VXS - Vx, VXE - Vx, VXW - Vx
+        dVYN, dVYS, dVYE, dVYW = VYN - Vy, VYS - Vy, VYE - Vy, VYW - Vy
+        dVZN, dVZS, dVZE, dVZW = VZN - Vz, VZS - Vz, VZE - Vz, VZW - Vz
+        dVXNE, dVXNW, dVXSE, dVXSW = VXNE - Vx, VXNW - Vx, VXSE - Vx, VXSW - Vx
+        dVYNE, dVYNW, dVYSE, dVYSW = VYNE - Vy, VYNW - Vy, VYSE - Vy, VYSW - Vy
+        dVZNE, dVZNW, dVZSE, dVZSW = VZNE - Vz, VZNW - Vz, VZSE - Vz, VZSW - Vz
+        dVXNN, dVXSS, dVXEE, dVXWW = VXNN - Vx, VXSS - Vx, VXEE - Vx, VXWW - Vx
+        dVYNN, dVYSS, dVYEE, dVYWW = VYNN - Vy, VYSS - Vy, VYEE - Vy, VYWW - Vy
+        dVZNN, dVZSS, dVZEE, dVZWW = VZNN - Vz, VZSS - Vz, VZEE - Vz, VZWW - Vz
+
 
         LN = (dXN ** 2 + dYN ** 2 + dZN ** 2) ** 0.5
         LS = (dXS ** 2 + dYS ** 2 + dZS ** 2) ** 0.5
@@ -371,104 +396,171 @@ class Canopy:
         LEE = np.where(LEE == 0, 1, LEE)
         LWW = np.where(LWW == 0, 1, LWW)
 
-        FN = Fe(LN - self.LN0, self.ECoeffAx) * 0.5 * (self.LE0 + self.LW0) / self.LN0
-        FS = Fe(LS - self.LS0, self.ECoeffAx) * 0.5 * (self.LE0 + self.LW0) / self.LS0
-        FE = Fe(LE - self.LE0, self.ECoeffAx) * 0.5 * (self.LN0 + self.LS0) / self.LE0
-        FW = Fe(LW - self.LW0, self.ECoeffAx) * 0.5 * (self.LN0 + self.LS0) / self.LW0
+        dVN = dVXN * dXN / LN + dVYN * dYN / LN + dVZN * dZN / LN
+        dVS = dVXS * dXS / LS + dVYS * dYS / LS + dVZS * dZS / LS
+        dVE = dVXE * dXE / LE + dVYE * dYE / LE + dVZE * dZE / LE
+        dVW = dVXW * dXW / LW + dVYW * dYW / LW + dVZW * dZW / LW
+        dVNE = dVXNE * dXNE / LNE + dVYNE * dYNE / LNE + dVZNE * dZNE / LNE
+        dVSE = dVXSE * dXSE / LSE + dVYSE * dYSE / LSE + dVZSE * dZSE / LSE
+        dVNW = dVXNW * dXNW / LNW + dVYNW * dYNW / LNW + dVZNW * dZNW / LNW
+        dVSW = dVXSW * dXSW / LSW + dVYSW * dYSW / LSW + dVZSW * dZSW / LSW
+        dVNN = dVXNN * dXNN / LNN + dVYNN * dYNN / LNN + dVZNN * dZNN / LNN
+        dVSS = dVXSS * dXSS / LSS + dVYSS * dYSS / LSS + dVZSS * dZSS / LSS
+        dVEE = dVXEE * dXEE / LEE + dVYEE * dYEE / LEE + dVZEE * dZEE / LEE
+        dVWW = dVXWW * dXWW / LWW + dVYWW * dYWW / LWW + dVZWW * dZWW / LWW
 
-        FNE = Fe(LNE - self.LNE0, self.ECoeffDiag) * 0.5 * (self.LNW0 + self.LSE0) / self.LNE0
-        FNW = Fe(LNW - self.LNW0, self.ECoeffDiag) * 0.5 * (self.LNE0 + self.LSW0) / self.LNW0
-        FSE = Fe(LSE - self.LSE0, self.ECoeffDiag) * 0.5 * (self.LNE0 + self.LSW0) / self.LSE0
-        FSW = Fe(LSW - self.LSW0, self.ECoeffDiag) * 0.5 * (self.LNW0 + self.LSE0) / self.LSW0
-        FNN = Fe((LNN - self.LNN0), self.ECoeffReinf) * ((self.LE0 + self.LW0) / self.LNN0) / 100
-        FSS = Fe((LSS - self.LSS0), self.ECoeffReinf) * ((self.LE0 + self.LW0) / self.LSS0) / 100
-        FEE = Fe((LEE - self.LEE0), self.ECoeffReinf) * ((self.LN0 + self.LS0) / self.LEE0) / 100
-        FWW = Fe((LWW - self.LWW0), self.ECoeffReinf) * ((self.LN0 + self.LS0) / self.LWW0) / 100
+        FN = Fe(LN / self.LN0 - 1, self.ECoeffAx) * 0.5 * (self.LE0 + self.LW0)
+        FS = Fe(LS / self.LS0 - 1, self.ECoeffAx) * 0.5 * (self.LE0 + self.LW0)
+        FE = Fe(LE / self.LE0 - 1, self.ECoeffAx) * 0.5 * (self.LN0 + self.LS0)
+        FW = Fe(LW / self.LW0 - 1, self.ECoeffAx) * 0.5 * (self.LN0 + self.LS0)
 
-        RNumWidthNS = max(int(self.RWidth / (np.average((self.LE0 + self.LW0) * 0.5))), 1)
-        RNumWidthEW = max(int(self.RWidth / (np.average((self.LN0 + self.LS0) * 0.5))), 1)
+        FNE = Fe(LNE / self.LNE0 - 1, self.ECoeffDiag) * 0.5 * (self.LNW0 + self.LSE0)
+        FNW = Fe(LNW / self.LNW0 - 1, self.ECoeffDiag) * 0.5 * (self.LNE0 + self.LSW0)
+        FSE = Fe(LSE / self.LSE0 - 1, self.ECoeffDiag) * 0.5 * (self.LNE0 + self.LSW0)
+        FSW = Fe(LSW / self.LSW0 - 1, self.ECoeffDiag) * 0.5 * (self.LNW0 + self.LSE0)
+        FNN = 0#Fe((LNN / self.LNN0) - 1, self.ECoeffAx) * ((self.LE0 + self.LW0)) / 100
+        FSS = 0#Fe((LSS / self.LSS0) - 1, self.ECoeffAx) * ((self.LE0 + self.LW0)) / 100
+        FEE = 0#Fe((LEE / self.LEE0) - 1, self.ECoeffAx) * ((self.LN0 + self.LS0)) / 100
+        FWW = 0#Fe((LWW / self.LWW0) - 1, self.ECoeffAx) * ((self.LN0 + self.LS0)) / 100
 
-        FN[-RNumWidthNS:, :] += Fe((LN - self.LN0)[-RNumWidthNS:, :], self.ECoeffReinf) * (0.5 * (self.LE0 + self.LW0) / self.LN0)[-RNumWidthNS:, :]
-        FN[:RNumWidthNS, :] += Fe((LN - self.LN0)[:RNumWidthNS, :], self.ECoeffReinf) * (0.5 * (self.LE0 + self.LW0) / self.LN0)[:RNumWidthNS, :]
-        FS[-RNumWidthNS:, :] += Fe((LS - self.LS0)[-RNumWidthNS:, :], self.ECoeffReinf) * (0.5 * (self.LE0 + self.LW0) / self.LS0)[-RNumWidthNS:, :]
-        FS[:RNumWidthNS, :] += Fe((LS - self.LS0)[:RNumWidthNS, :], self.ECoeffReinf) * (0.5 * (self.LE0 + self.LW0) / self.LS0)[:RNumWidthNS, :]
-        FE[:RNumWidthNS, :] += Fe((LE - self.LE0)[:RNumWidthNS, :], self.ECoeffReinf) * (0.5 * (self.LN0 + self.LS0) / self.LE0)[:RNumWidthNS, :]
-        FE[-RNumWidthNS:, :] += Fe((LE - self.LE0)[-RNumWidthNS:, :], self.ECoeffReinf) * (0.5 * (self.LN0 + self.LS0) / self.LE0)[-RNumWidthNS:, :]
-        FW[:RNumWidthNS, :] += Fe((LW - self.LW0)[:RNumWidthNS, :], self.ECoeffReinf) * (0.5 * (self.LN0 + self.LS0) / self.LW0)[:RNumWidthNS, :]
-        FW[-RNumWidthNS:, :] += Fe((LW - self.LW0)[-RNumWidthNS:, :], self.ECoeffReinf) * (0.5 * (self.LN0 + self.LS0) / self.LW0)[-RNumWidthNS:, :]
-        FNE[-RNumWidthNS:, :] += Fe((LNE - self.LNE0)[-RNumWidthNS:, :], self.ECoeffReinfDiag) * (0.5 * (self.LNW0 + self.LSE0) / self.LNE0)[-RNumWidthNS:, :]
-        FNE[:RNumWidthNS, :] += Fe((LNE - self.LNE0)[:RNumWidthNS, :], self.ECoeffReinfDiag) * (0.5 * (self.LNW0 + self.LSE0) / self.LNE0)[:RNumWidthNS, :]
-        FNW[-RNumWidthNS:, :] += Fe((LNW - self.LNW0)[-RNumWidthNS:, :], self.ECoeffReinfDiag) * (0.5 * (self.LNE0 + self.LSW0) / self.LNW0)[-RNumWidthNS:, :]
-        FNW[:RNumWidthNS, :] += Fe((LNW - self.LNW0)[:RNumWidthNS, :], self.ECoeffReinfDiag) * (0.5 * (self.LNE0 + self.LSW0) / self.LNW0)[:RNumWidthNS, :]
-        FSE[-RNumWidthNS:, :] += Fe((LSE - self.LSE0)[-RNumWidthNS:, :], self.ECoeffReinfDiag) * (0.5 * (self.LSW0 + self.LNE0) / self.LSE0)[-RNumWidthNS:, :]
-        FSE[:RNumWidthNS, :] += Fe((LSE - self.LSE0)[:RNumWidthNS, :], self.ECoeffReinfDiag) * (0.5 * (self.LSW0 + self.LNE0) / self.LSE0)[:RNumWidthNS, :]
-        FSW[-RNumWidthNS:, :] += Fe((LSW - self.LSW0)[-RNumWidthNS:, :], self.ECoeffReinfDiag) * (0.5 * (self.LNW0 + self.LSE0) / self.LSW0)[-RNumWidthNS:, :]
-        FSW[:RNumWidthNS, :] += Fe((LSW - self.LSW0)[:RNumWidthNS, :], self.ECoeffReinfDiag) * (0.5 * (self.LNW0 + self.LSE0) / self.LSW0)[:RNumWidthNS, :]
-        FEE[:RNumWidthNS, :] += Fe((LEE - self.LEE0)[:RNumWidthNS, :], self.ECoeffReinf) * ((self.LN0 + self.LS0) / self.LEE0)[:RNumWidthNS, :] / 50
-        FEE[-RNumWidthNS:, :] += Fe((LEE - self.LEE0)[-RNumWidthNS:, :], self.ECoeffReinf) * ((self.LN0 + self.LS0) / self.LEE0)[-RNumWidthNS:, :] / 50
-        FWW[:RNumWidthNS, :] += Fe((LWW - self.LWW0)[:RNumWidthNS, :], self.ECoeffReinf) * ((self.LN0 + self.LS0) / self.LWW0)[:RNumWidthNS, :] / 50
-        FWW[-RNumWidthNS:, :] += Fe((LWW - self.LWW0)[-RNumWidthNS:, :], self.ECoeffReinf) * ((self.LN0 + self.LS0) / self.LWW0)[-RNumWidthNS:, :] / 50
-        FNN[:RNumWidthNS, :] += Fe((LNN - self.LNN0)[:RNumWidthNS, :], self.ECoeffReinf) * ((self.LE0 + self.LW0) / self.LNN0)[:RNumWidthNS, :] / 50
-        FNN[-RNumWidthNS:, :] += Fe((LNN - self.LNN0)[-RNumWidthNS:, :], self.ECoeffReinf) * ((self.LE0 + self.LW0) / self.LSS0)[-RNumWidthNS:, :] / 50
-        FSS[:RNumWidthNS, :] += Fe((LSS - self.LSS0)[:RNumWidthNS, :], self.ECoeffReinf) * ((self.LE0 + self.LW0) / self.LWW0)[:RNumWidthNS, :] / 50
-        FSS[-RNumWidthNS:, :] += Fe((LSS - self.LSS0)[-RNumWidthNS:, :], self.ECoeffReinf) * ((self.LE0 + self.LW0) / self.LWW0)[-RNumWidthNS:, :] / 50
+        RNumWidthNS = max(int(self.RWidth / (np.average((self.LE0 + self.LW0) * 0.5))), 1) + 1
+        RNumWidthEW = max(int(self.RWidth / (np.average((self.LN0 + self.LS0) * 0.5))), 1) + 1
+
+        FN[-RNumWidthNS:, :] += Fe((LN / self.LN0 - 1)[-RNumWidthNS:, :], self.ECoeffReinf) * (0.5 * (self.LE0 + self.LW0))[-RNumWidthNS:, :]
+        FN[:RNumWidthNS, :] += Fe((LN / self.LN0 - 1)[:RNumWidthNS, :], self.ECoeffReinf) * (0.5 * (self.LE0 + self.LW0))[:RNumWidthNS, :]
+        FS[-RNumWidthNS:, :] += Fe((LS / self.LS0 - 1)[-RNumWidthNS:, :], self.ECoeffReinf) * (0.5 * (self.LE0 + self.LW0))[-RNumWidthNS:, :]
+        FS[:RNumWidthNS, :] += Fe((LS / self.LS0 - 1)[:RNumWidthNS, :], self.ECoeffReinf) * (0.5 * (self.LE0 + self.LW0))[:RNumWidthNS, :]
+        FE[:RNumWidthNS, :] += Fe((LE / self.LE0 - 1)[:RNumWidthNS, :], self.ECoeffReinf) * (0.5 * (self.LN0 + self.LS0))[:RNumWidthNS, :]
+        FE[-RNumWidthNS:, :] += Fe((LE / self.LE0 - 1)[-RNumWidthNS:, :], self.ECoeffReinf) * (0.5 * (self.LN0 + self.LS0))[-RNumWidthNS:, :]
+        FW[:RNumWidthNS, :] += Fe((LW / self.LW0 - 1)[:RNumWidthNS, :], self.ECoeffReinf) * (0.5 * (self.LN0 + self.LS0))[:RNumWidthNS, :]
+        FW[-RNumWidthNS:, :] += Fe((LW / self.LW0 - 1)[-RNumWidthNS:, :], self.ECoeffReinf) * (0.5 * (self.LN0 + self.LS0))[-RNumWidthNS:, :]
+        FNE[-RNumWidthNS:, :] += Fe((LNE / self.LNE0 - 1)[-RNumWidthNS:, :], self.ECoeffReinfDiag) * (0.5 * (self.LNW0 + self.LSE0))[-RNumWidthNS:, :]
+        FNE[:RNumWidthNS, :] += Fe((LNE / self.LNE0 - 1)[:RNumWidthNS, :], self.ECoeffReinfDiag) * (0.5 * (self.LNW0 + self.LSE0))[:RNumWidthNS, :]
+        FNW[-RNumWidthNS:, :] += Fe((LNW / self.LNW0 - 1)[-RNumWidthNS:, :], self.ECoeffReinfDiag) * (0.5 * (self.LNE0 + self.LSW0))[-RNumWidthNS:, :]
+        FNW[:RNumWidthNS, :] += Fe((LNW / self.LNW0 - 1)[:RNumWidthNS, :], self.ECoeffReinfDiag) * (0.5 * (self.LNE0 + self.LSW0))[:RNumWidthNS, :]
+        FSE[-RNumWidthNS:, :] += Fe((LSE / self.LSE0 - 1)[-RNumWidthNS:, :], self.ECoeffReinfDiag) * (0.5 * (self.LSW0 + self.LNE0))[-RNumWidthNS:, :]
+        FSE[:RNumWidthNS, :] += Fe((LSE / self.LSE0 - 1)[:RNumWidthNS, :], self.ECoeffReinfDiag) * (0.5 * (self.LSW0 + self.LNE0))[:RNumWidthNS, :]
+        FSW[-RNumWidthNS:, :] += Fe((LSW / self.LSW0 - 1)[-RNumWidthNS:, :], self.ECoeffReinfDiag) * (0.5 * (self.LNW0 + self.LSE0))[-RNumWidthNS:, :]
+        FSW[:RNumWidthNS, :] += Fe((LSW / self.LSW0 - 1)[:RNumWidthNS, :], self.ECoeffReinfDiag) * (0.5 * (self.LNW0 + self.LSE0))[:RNumWidthNS, :]
+        # FEE[:RNumWidthNS, :] += Fe((LEE / self.LEE0 - 1)[:RNumWidthNS, :], self.ECoeffReinf) * ((self.LN0 + self.LS0))[:RNumWidthNS, :] / 50
+        # FEE[-RNumWidthNS:, :] += Fe((LEE / self.LEE0 - 1)[-RNumWidthNS:, :], self.ECoeffReinf) * ((self.LN0 + self.LS0))[-RNumWidthNS:, :] / 50
+        # FWW[:RNumWidthNS, :] += Fe((LWW / self.LWW0 - 1)[:RNumWidthNS, :], self.ECoeffReinf) * ((self.LN0 + self.LS0))[:RNumWidthNS, :] / 50
+        # FWW[-RNumWidthNS:, :] += Fe((LWW / self.LWW0 - 1)[-RNumWidthNS:, :], self.ECoeffReinf) * ((self.LN0 + self.LS0))[-RNumWidthNS:, :] / 50
+        # FNN[:RNumWidthNS, :] += Fe((LNN / self.LNN0 - 1)[:RNumWidthNS, :], self.ECoeffReinf) * ((self.LE0 + self.LW0))[:RNumWidthNS, :] / 50
+        # FNN[-RNumWidthNS:, :] += Fe((LNN / self.LNN0 - 1)[-RNumWidthNS:, :], self.ECoeffReinf) * ((self.LE0 + self.LW0))[-RNumWidthNS:, :] / 50
+        # FSS[:RNumWidthNS, :] += Fe((LSS / self.LSS0 - 1)[:RNumWidthNS, :], self.ECoeffReinf) * ((self.LE0 + self.LW0))[:RNumWidthNS, :] / 50
+        # FSS[-RNumWidthNS:, :] += Fe((LSS / self.LSS0 - 1)[-RNumWidthNS:, :], self.ECoeffReinf) * ((self.LE0 + self.LW0))[-RNumWidthNS:, :] / 50
 
         self.Color[-RNumWidthNS:, :] = 1
         self.Color[:RNumWidthNS, :] = 1
 
-        Sus_Index = np.linspace(0, len(X[0]), self.NumSus + 1)
-        Sus_Index = np.array(Sus_Index[:-1], int)
-        offset = int(self.NumSus / self.NumGores)
-        Gore_Index = Sus_Index[::offset]
-        # print(Gore_Index)
+        Sus_Index = self.Sus_Index
+        Gore_Index = self.Gore_Index
+        #print(Gore_Index)
         for i in Gore_Index:
-            im = int(i - RNumWidthEW / 2) % len(FE[0])
-            ip = int(i + RNumWidthEW / 2) % len(FE[0])
-            if im > ip:
-                im -= len(FE[0])
-            FE[:, im:ip] += (Fe(LE - self.LE0, self.ECoeffReinf) * 0.5 * (self.LN0 + self.LS0) / self.LE0)[:, im:ip]
-            FW[:, im:ip] += (Fe(LW - self.LW0, self.ECoeffReinf) * 0.5 * (self.LN0 + self.LS0) / self.LW0)[:, im:ip]
-            FN[:, im:ip] += (Fe(LN - self.LN0, self.ECoeffReinf) * 0.5 * (self.LE0 + self.LW0) / self.LN0)[:, im:ip]
-            FS[:, im:ip] += (Fe(LS - self.LS0, self.ECoeffReinf) * 0.5 * (self.LE0 + self.LW0) / self.LS0)[:, im:ip]
-            FNE[:, im:ip] += (Fe(LNE - self.LNE0, self.ECoeffReinfDiag) * 0.5 * (self.LNW0 + self.LSE0) / self.LNE0)[:, im:ip]
-            FNW[:, im:ip] += (Fe(LNW - self.LNW0, self.ECoeffReinfDiag) * 0.5 * (self.LNE0 + self.LSW0) / self.LNW0)[:, im:ip]
-            FSE[:, im:ip] += (Fe(LSE - self.LSE0, self.ECoeffReinfDiag) * 0.5 * (self.LNE0 + self.LSW0) / self.LSE0)[:, im:ip]
-            FSW[:, im:ip] += (Fe(LSW - self.LSW0, self.ECoeffReinfDiag) * 0.5 * (self.LSE0 + self.LNW0) / self.LSW0)[:, im:ip]
-            FNN[:, im:ip] += (Fe(LNN - self.LNN0, self.ECoeffReinf) * (self.LEE0 + self.LWW0) / self.LNN0)[:, im:ip] / 200
-            FSS[:, im:ip] += (Fe(LSS - self.LSS0, self.ECoeffReinf) * (self.LEE0 + self.LWW0) / self.LSS0)[:, im:ip] / 200
-            FEE[:, im:ip] += (Fe(LEE - self.LEE0, self.ECoeffReinf) * (self.LNN0 + self.LSS0) / self.LEE0)[:, im:ip] / 200
-            FWW[:, im:ip] += (Fe(LWW - self.LWW0, self.ECoeffReinf) * (self.LNN0 + self.LSS0) / self.LWW0)[:, im:ip] / 200
-            FN[:, i] += (Fe(LN - self.LN0, self.ECoeffSus) * 0.5 * (self.LE0 + self.LW0) / self.LN0)[:, i]
-            FS[:, i] += (Fe(LS - self.LS0, self.ECoeffSus) * 0.5 * (self.LE0 + self.LW0) / self.LS0)[:, i]
-            self.Color[:, im:ip] = 1
+            im = min(i - 1, int(i - RNumWidthEW / 2)) #% len(FE[0])
+            ip = max(i + 1, int(i + RNumWidthEW / 2)) #% len(FE[0])
+            if im < 0 and ip > 0:
+                FE[:, im:] += (Fe(LE / self.LE0 - 1, self.ECoeffReinf) * 0.5 * (self.LN0 + self.LS0))[:, im:]
+                FW[:, im:] += (Fe(LW / self.LW0 - 1, self.ECoeffReinf) * 0.5 * (self.LN0 + self.LS0))[:, im:]
+                FN[:, im:] += (Fe(LN / self.LN0 - 1, self.ECoeffReinf) * 0.5 * (self.LE0 + self.LW0))[:, im:]
+                FS[:, im:] += (Fe(LS / self.LS0 - 1, self.ECoeffReinf) * 0.5 * (self.LE0 + self.LW0))[:, im:]
+                # FNE[:, im:] += (Fe(LNE / self.LNE0 - 1, self.ECoeffReinfDiag) * 0.5 * (self.LNW0 + self.LSE0))[:, im:]
+                # FNW[:, im:] += (Fe(LNW / self.LNW0 - 1, self.ECoeffReinfDiag) * 0.5 * (self.LNE0 + self.LSW0))[:, im:]
+                # FSE[:, im:] += (Fe(LSE / self.LSE0 - 1, self.ECoeffReinfDiag) * 0.5 * (self.LNE0 + self.LSW0))[:, im:]
+                # FSW[:, im:] += (Fe(LSW / self.LSW0 - 1, self.ECoeffReinfDiag) * 0.5 * (self.LSE0 + self.LNW0))[:, im:]
+                # FNN[:, im:] += (Fe(LNN / self.LNN0 - 1, self.ECoeffReinf) * (self.LEE0 + self.LWW0))[:, im:] / 50
+                # FSS[:, im:] += (Fe(LSS / self.LSS0 - 1, self.ECoeffReinf) * (self.LEE0 + self.LWW0))[:, im:] / 50
+                # FEE[:, im:] += (Fe(LEE / self.LEE0 - 1, self.ECoeffReinf) * (self.LNN0 + self.LSS0))[:, im:] / 50
+                # FWW[:, im:] += (Fe(LWW / self.LWW0 - 1, self.ECoeffReinf) * (self.LNN0 + self.LSS0))[:, im:] / 50
 
+                FE[:, :ip] += (Fe(LE / self.LE0 - 1, self.ECoeffReinf) * 0.5 * (self.LN0 + self.LS0))[:, :ip]
+                FW[:, :ip] += (Fe(LW / self.LW0 - 1, self.ECoeffReinf) * 0.5 * (self.LN0 + self.LS0))[:, :ip]
+                FN[:, :ip] += (Fe(LN / self.LN0 - 1, self.ECoeffReinf) * 0.5 * (self.LE0 + self.LW0))[:, :ip]
+                FS[:, :ip] += (Fe(LS / self.LS0 - 1, self.ECoeffReinf) * 0.5 * (self.LE0 + self.LW0))[:, :ip]
+                # FNE[:, :ip] += (Fe(LNE - self.LNE0 - 1, self.ECoeffReinfDiag) * 0.5 * (self.LNW0 + self.LSE0))[:, :ip]
+                # FNW[:, :ip] += (Fe(LNW / self.LNW0 - 1, self.ECoeffReinfDiag) * 0.5 * (self.LNE0 + self.LSW0))[:, :ip]
+                # FSE[:, :ip] += (Fe(LSE / self.LSE0 - 1, self.ECoeffReinfDiag) * 0.5 * (self.LNE0 + self.LSW0))[:, :ip]
+                # FSW[:, :ip] += (Fe(LSW / self.LSW0 - 1, self.ECoeffReinfDiag) * 0.5 * (self.LSE0 + self.LNW0))[:, :ip]
+                # FNN[:, :ip] += (Fe(LNN / self.LNN0 - 1, self.ECoeffReinf) * (self.LEE0 + self.LWW0))[:, :ip] / 50
+                # FSS[:, :ip] += (Fe(LSS / self.LSS0 - 1, self.ECoeffReinf) * (self.LEE0 + self.LWW0))[:, :ip] / 50
+                # FEE[:, :ip] += (Fe(LEE / self.LEE0 - 1, self.ECoeffReinf) * (self.LNN0 + self.LSS0))[:, :ip] / 50
+                # FWW[:, :ip] += (Fe(LWW / self.LWW0 - 1, self.ECoeffReinf) * (self.LNN0 + self.LSS0))[:, :ip] / 50
+                self.Color[:, im:] = 1
+            else:
+                FE[:, im:ip] += (Fe(LE / self.LE0 - 1, self.ECoeffReinf) * 0.5 * (self.LN0 + self.LS0))[:, im:ip]
+                FW[:, im:ip] += (Fe(LW / self.LW0 - 1, self.ECoeffReinf) * 0.5 * (self.LN0 + self.LS0))[:, im:ip]
+                FN[:, im:ip] += (Fe(LN / self.LN0 - 1, self.ECoeffReinf) * 0.5 * (self.LE0 + self.LW0))[:, im:ip]
+                FS[:, im:ip] += (Fe(LS / self.LS0 - 1, self.ECoeffReinf) * 0.5 * (self.LE0 + self.LW0))[:, im:ip]
+                # FNE[:, im:ip] += (Fe(LNE / self.LNE0 - 1, self.ECoeffReinfDiag) * 0.5 * (self.LNW0 + self.LSE0))[:, im:ip]
+                # FNW[:, im:ip] += (Fe(LNW / self.LNW0 - 1, self.ECoeffReinfDiag) * 0.5 * (self.LNE0 + self.LSW0))[:, im:ip]
+                # FSE[:, im:ip] += (Fe(LSE / self.LSE0 - 1, self.ECoeffReinfDiag) * 0.5 * (self.LNE0 + self.LSW0))[:, im:ip]
+                # FSW[:, im:ip] += (Fe(LSW / self.LSW0 - 1, self.ECoeffReinfDiag) * 0.5 * (self.LSE0 + self.LNW0))[:, im:ip]
+                # FNN[:, im:ip] += (Fe(LNN / self.LNN0 - 1, self.ECoeffReinf) * (self.LEE0 + self.LWW0))[:, im:ip] / 50
+                # FSS[:, im:ip] += (Fe(LSS / self.LSS0 - 1, self.ECoeffReinf) * (self.LEE0 + self.LWW0))[:, im:ip] / 50
+                # FEE[:, im:ip] += (Fe(LEE / self.LEE0 - 1, self.ECoeffReinf) * (self.LNN0 + self.LSS0))[:, im:ip] / 50
+                # FWW[:, im:ip] += (Fe(LWW / self.LWW0 - 1, self.ECoeffReinf) * (self.LNN0 + self.LSS0))[:, im:ip] / 50
+                self.Color[:, im:ip] = 1
+            #FN[:, i] += (Fe(LN - self.LN0, self.ECoeffSus) / self.LN0)[:, i]
+            #FS[:, i] += (Fe(LS - self.LS0, self.ECoeffSus) / self.LS0)[:, i]
+
+        # print(FE[2])
+        # print(self.M[2])
         FN[-1, :] = 0
         FNE[-1, :] = 0
         FNW[-1, :] = 0
         FS[0, :] = 0
         FSE[0, :] = 0
         FSW[0, :] = 0
-        FNN[-1, :] = 0
-        FNN[-2, :] = 0
-        FSS[0, :] = 0
-        FSS[1, :] = 0
+        # FNN[-1, :] = 0
+        # FNN[-2, :] = 0
+        # FSS[0, :] = 0
+        # FSS[1, :] = 0
+
+        dVN[-1] = 0
+        dVNE[-1] = 0
+        dVNW[-1] = 0
+        dVNN[-1], dVNN[-2] = 0, 0
+
+        dVS[0] = 0
+        dVSE[0] = 0
+        dVSW[0] = 0
+        dVSS[0], dVSS[1] = 0, 0
 
         Dx, Dy, Dz, Lx, Ly, Lz = self.Sp()
         Ax = 1 / self.M * (FN * dXN / LN + FS * dXS / LS + FE * dXE / LE + FW * dXW / LW +
                            FNE * dXNE / LNE + FNW * dXNW / LNW +
                            FSE * dXSE / LSE + FSW * dXSW / LSW +
                            FNN * dXNN / LNN + FSS * dXSS / LSS +
-                           FEE * dXEE / LEE + FWW * dXWW / LWW - C * Vx * np.abs(Vx) * Fixed + Dx + Lx)
+                           FEE * dXEE / LEE + FWW * dXWW / LWW +
+                           C * (dVN * dXN / LN + dVS * dXS / LS +
+                                dVE * dXE / LE + dVW * dXW / LW +
+                                dVNE * dXNE / LNE + dVNW * dXNW / LNW +
+                                dVSE * dXSE / LSE + dVSW * dXSW / LSW +
+                                dVNN * dXNN / LNN + dVSS * dXSS / LSS +
+                                dVEE * dXEE / LEE + dVWW * dXWW / LWW) * Fixed - CGl * Vx * Fixed + Dx + Lx)
         Ay = 1 / self.M * (FN * dYN / LN + FS * dYS / LS + FE * dYE / LE + FW * dYW / LW +
                            FNE * dYNE / LNE + FNW * dYNW / LNW +
                            FSE * dYSE / LSE + FSW * dYSW / LSW +
                            FNN * dYNN / LNN + FSS * dYSS / LSS +
-                           FEE * dYEE / LEE + FWW * dYWW / LWW - C * Vy * np.abs(Vy) * Fixed + Dy + Ly)
+                           FEE * dYEE / LEE + FWW * dYWW / LWW +
+                           C * (dVN * dYN / LN + dVS * dYS / LS +
+                                dVE * dYE / LE + dVW * dYW / LW +
+                                dVNE * dYNE / LNE + dVNW * dYNW / LNW +
+                                dVSE * dYSE / LSE + dVSW * dYSW / LSW +
+                                dVNN * dYNN / LNN + dVSS * dYSS / LSS +
+                                dVEE * dYEE / LEE + dVWW * dYWW / LWW) * Fixed - CGl * Vy * Fixed + Dy + Ly)
         Az = 1 / self.M * (FN * dZN / LN + FS * dZS / LS + FE * dZE / LE + FW * dZW / LW +
                            FNE * dZNE / LNE + FNW * dZNW / LNW +
                            FSE * dZSE / LSE + FSW * dZSW / LSW +
                            FNN * dZNN / LNN + FSS * dZSS / LSS +
-                           FEE * dZEE / LEE + FWW * dZWW / LWW - C * Vz * np.abs(Vz) * Fixed + Dz + Lz) + gz
+                           FEE * dZEE / LEE + FWW * dZWW / LWW +
+                           C * (dVN * dZN / LN + dVS * dZS / LS +
+                                dVE * dZE / LE + dVW * dZW / LW +
+                                dVNE * dZNE / LNE + dVNW * dZNW / LNW +
+                                dVSE * dZSE / LSE + dVSW * dZSW / LSW +
+                                dVNN * dZNN / LNN + dVSS * dZSS / LSS +
+                                dVEE * dZEE / LEE + dVWW * dZWW / LWW) * Fixed - CGl * Vz * Fixed + Dz + Lz) + gz
 
         return Ax, Ay, Az
 
@@ -504,11 +596,11 @@ class Canopy:
         dW = (dXW ** 2 + dYW ** 2 + dZW ** 2) ** 0.5
         dNS = 0.5 * (dN + dS)
         dEW = 0.5 * (dE + dW)
-        StrainNS = dNS - 0.5 * (self.LN0 + self.LS0)
-        StrainEW = dEW - 0.5 * (self.LE0 + self.LW0)
+        StrainNS = dNS / 0.5 / (self.LN0 + self.LS0) - 1
+        StrainEW = dEW / 0.5 / (self.LE0 + self.LW0) - 1
         Strain = (StrainNS ** 2 + StrainEW ** 2) ** 0.5
-        FeNS = Fe(StrainNS, self.ECoeffAx) / 0.5 / (self.LN0 + self.LS0)
-        FeEW = Fe(StrainEW, self.ECoeffAx) / 0.5 / (self.LE0 + self.LW0)
+        FeNS = Fe(StrainNS, self.ECoeffAx)
+        FeEW = Fe(StrainEW, self.ECoeffAx)
         FeTot = Fe(Strain, self.ECoeffAx)
         StressNS = FeNS / self.DFiber
         StressNS[0, :] = StressNS[1, :].copy()
@@ -520,7 +612,8 @@ class Canopy:
         StressVM = ((StressEW - StressNS)**2 * 0.5)**0.5
 
         fcolors = scamap.to_rgba(StressVM / 10 ** 6)
-        surface = ax.plot_surface(X, Y, Z, rstride=1, cstride=1, facecolors=fcolors, lw=0.6, antialiased=True, vmin=np.min(StressVM), vmax=np.max(StressVM))
+        zoom_factor = 0.5
+        #surface = ax.plot_surface(X, Y, Z, rstride=1, cstride=1, facecolors=fcolors, lw=0.6, antialiased=True, vmin=np.min(StressVM) / zoom_factor, vmax=np.max(StressVM) * zoom_factor)
 
         # for i in range(0, len(X), 2):
         #     for j in range(0, len(X[0]), 2):
@@ -629,6 +722,15 @@ class Canopy:
         self.M = 0.5 * (self.LN0 + self.LS0) * 0.5 * (self.LE0 + self.LW0) * self.rho * np.pi / 4 * self.porosity
         self.Color = np.zeros(self.X.shape)
         self.Nx, self.Ny = self.X.shape
+        self.RNumWidthNS = 1
+        if np.average((self.LE0 + self.LW0) * 0.5) != 0:
+            self.RNumWidthNS = max(int(self.RWidth / (np.average((self.LE0 + self.LW0) * 0.5))), 1)
+        if np.average((self.LN0 + self.LS0) * 0.5) != 0:
+            self.RNumWidthEW = max(int(self.RWidth / (np.average((self.LN0 + self.LS0) * 0.5))), 1) + 1
+        self.Sus_Index = np.linspace(0, len(self.X[0]), self.NumSus + 1)
+        self.Sus_Index = np.array(self.Sus_Index[:-1], int)
+        offset = int(self.NumSus / self.NumGores)
+        self.Gore_Index = self.Sus_Index[::offset]
         self.computeNormals()
 
     def save(self, name):
@@ -798,7 +900,8 @@ class Rope:
         Vz = self.Vz
         g0 = 0
         gz = np.ones(self.M.shape) * g0
-        C = 5 / self.X.shape[0]
+        C = 1 / self.X.shape[0]
+        CGl = 1 / self.X.shape[0]
 
         XN, XS = np.roll(self.X, -1, 0), np.roll(self.X, 1, 0)
         YN, YS = np.roll(self.Y, -1, 0), np.roll(self.Y, 1, 0)
@@ -814,34 +917,59 @@ class Rope:
         dYNN, dYSS = YNN - Y, YSS - Y
         dZNN, dZSS = ZNN - Z, ZSS - Z
 
+        VXN, VXS = np.roll(self.Vx, -1, 0), np.roll(self.Vx, 1, 0)
+        VYN, VYS = np.roll(self.Vy, -1, 0), np.roll(self.Vy, 1, 0)
+        VZN, VZS = np.roll(self.Vz, -1, 0), np.roll(self.Vz, 1, 0)
+        VXNN, VXSS = np.roll(self.Vx, -2, 0), np.roll(self.Vx, 2, 0)
+        VYNN, VYSS = np.roll(self.Vy, -2, 0), np.roll(self.Vy, 2, 0)
+        VZNN, VZSS = np.roll(self.Vz, -2, 0), np.roll(self.Vz, 21, 0)
+
+        dVXN, dVXS = VXN - Vx, VXS - Vx
+        dVYN, dVYS = VYN - Vy, VYS - Vy
+        dVZN, dVZS = VZN - Vz, VZS - Vz
+        dVXNN, dVXSS = VXNN - Vx, VXSS - Vx
+        dVYNN, dVYSS = VYNN - Vy, VYSS - Vy
+        dVZNN, dVZSS = VZNN - Vz, VZSS - Vz
+
         LN = (dXN ** 2 + dYN ** 2 + dZN ** 2) ** 0.5
         LS = (dXS ** 2 + dYS ** 2 + dZS ** 2) ** 0.5
         LNN = (dXNN ** 2 + dYNN ** 2 + dZNN ** 2) ** 0.5
         LSS = (dXSS ** 2 + dYSS ** 2 + dZSS ** 2) ** 0.5
 
-        FN = Fe(LN - self.LN0, self.ECoeff) / self.LN0
-        FS = Fe(LS - self.LS0, self.ECoeff) / self.LS0
+        FN = Fe(LN / self.LN0 - 1, self.ECoeff) / self.LN0
+        FS = Fe(LS / self.LS0 - 1, self.ECoeff) / self.LS0
 
         LN = np.where(LN == 0, 1, LN)
         LS = np.where(LS == 0, 1, LS)
         LNN = np.where(LNN == 0, 1, LNN)
         LSS = np.where(LSS == 0, 1, LSS)
 
+        dVN = dVXN * dXN / LN + dVYN * dYN / LN + dVZN * dZN / LN
+        dVS = dVXS * dXS / LS + dVYS * dYS / LS + dVZS * dZS / LS
+        dVNN = dVXNN * dXNN / LNN + dVYNN * dYNN / LNN + dVZNN * dZNN / LNN
+        dVSS = dVXSS * dXSS / LSS + dVYSS * dYSS / LSS + dVZSS * dZSS / LSS
+
         FN[-1] = 0
         FS[0] = 0
+
+        dVN[-1] = 0
+        dVNN[-1], dVNN[-2] = 0, 0
+
+        dVS[0] = 0
+        dVSS[0], dVSS[1] = 0, 0
 
         kNN = self.kNN
         kSS = self.kSS
 
         Ax = 1 / self.M * (FN * dXN / LN + FS * dXS / LS +
                            kNN * (LNN - self.LNN0) * dXNN / LNN + kSS * (LSS - self.LSS0) * dXSS / LSS
-                           - C * Vx * Fixed)
+                           + C * (dVN * dXN / LN + dVS * dXS / LS) * Fixed - CGl * Vx * Fixed)
         Ay = 1 / self.M * (FN * dYN / LN + FS * dYS / LS +
                            kNN * (LNN - self.LNN0) * dYNN / LNN + kSS * (LSS - self.LSS0) * dYSS / LSS
-                           - C * Vy * Fixed)
+                           + C * (dVN * dYN / LN + dVS * dYS / LS) * Fixed - CGl * Vy * Fixed)
         Az = 1 / self.M * (FN * dZN / LN + FS * dZS / LS +
                            kNN * (LNN - self.LNN0) * dZNN / LNN + kSS * (LSS - self.LSS0) * dZSS / LSS
-                           - C * Vz * Fixed) + gz
+                           + C * (dVN * dZN / LN + dVS * dZS / LS) * Fixed - CGl * Vz * Fixed) + gz
 
         return Ax, Ay, Az
 
@@ -1003,43 +1131,16 @@ class Parachute:
         ratio = 1
 
         for i in range(len(disks)):
-            Nr = disk_res[i]
-            Nang = ang_res
-            r = np.linspace(disks[i][0], disks[i][1], Nr + 1)
-            theta = np.linspace(0, np.pi * 2, Nang + 1)
-            theta = theta[:-1].copy()
-            R, Theta = np.meshgrid(r, theta)
-            r_d = self.rd
-            R_d = disks[i][1]
-            R_v = disks[i][0]
-            r_max = r_d / R_d * R + np.pi * R / (Nang + 1) * (1 - (r_d / R_d) ** 2) ** 0.5
-            r_min = r_d / R_d * R - np.pi * R / (Nang + 1) * (1 - (r_d / R_d) ** 2) ** 0.5
-            R_folded = r_max
-            R_folded[1::2, :] = r_min[1::2, :]
-            X = (R_folded * np.cos(Theta)).T
-            Z = (R_folded * np.sin(Theta)).T
-            Y = (-(R_d - R_v - R) * (1 - (r_d / R_d) ** 2) ** 0.5).T
-            Disk = Canopy(X, Y, Z, canopy_material, reinforcement_material, sus_line_material, reinforcement, num_suspension, num_gores, dp_initial)
+            Xui, Yui, Zui = self.computeDiskShape(disks[-1][1], disk_res[i], ang_res, disks[i][0], disks[i][1], disks[-1][1])
+            X, Y, Z = self.computeDiskShape(self.rd, disk_res[i], ang_res, disks[i][0], disks[i][1], disks[-1][1])
+            Disk = Canopy(Xui, Yui, Zui, X, Y, Z, canopy_material, reinforcement_material, sus_line_material, reinforcement, num_suspension, num_gores, dp_initial)
             self.Disks.append(Disk)
         for i in range(len(bands)):
-            Nang = ang_res
-            r = disks[-1][1]
-            r_d = self.rd
-            R_d = r
-            r_max = r_d / R_d * r + np.pi * r / (Nang + 1) * (1 - (r_d / R_d) ** 2) ** 0.5
-            r_min = r_d / R_d * r - np.pi * r / (Nang + 1) * (1 - (r_d / R_d) ** 2) ** 0.5
-            theta = np.linspace(0, np.pi * 2, Nang + 1)
-            theta = theta[:-1].copy()
-            x = r_max * np.cos(theta)
-            z = r_max * np.sin(theta)
-            x[1::2] = (r_min * np.cos(theta))[1::2]
-            z[1::2] = (r_min * np.sin(theta))[1::2]
-            y = np.linspace(bands[i][0], bands[i][1], band_res[i])
-            X, Y = np.meshgrid(x, y)
-            Z, Y = np.meshgrid(z, y)
-            Band = Canopy(X, Y, Z, canopy_material, reinforcement_material, sus_line_material, reinforcement, num_suspension, num_gores, dp_initial * ratio)
+            Xui, Yui, Zui = self.computeBandShape(disks[-1][1], band_res[i], ang_res, bands[i][0], bands[i][1], disks[-1][1])
+            X, Y, Z = self.computeBandShape(self.rd, band_res[i], ang_res, bands[i][0], bands[i][1], disks[-1][1])
+            Band = Canopy(Xui, Yui, Zui, X, Y, Z, canopy_material, reinforcement_material, sus_line_material, reinforcement, num_suspension, num_gores, dp_initial * ratio)
             self.Bands.append(Band)
-        Sus_Index = np.linspace(0, ang_res, Num_Suspension + 1)
+        Sus_Index = np.linspace(0, ang_res, num_suspension + 1)
         self.Sus_Index = np.array(Sus_Index, int)[:-1]
         for i in range(len(self.Sus_Index)):
             index = self.Sus_Index[i]
@@ -1074,6 +1175,43 @@ class Parachute:
                 sus_line.append(line)
                 self.SuspensionLines.append(sus_line)
 
+    def computeDiskShape(self, rd, diskRes, angRes, disk1, disk2, Rd):
+        Nr = diskRes
+        Nang = angRes
+        r = np.linspace(disk1, disk2, Nr + 1)
+        theta = np.linspace(0, np.pi * 2, Nang + 1)
+        theta = theta[:-1].copy()
+        R, Theta = np.meshgrid(r, theta)
+        r_d = rd
+        R_d = Rd
+        R_v = disk1
+        r_max = r_d / R_d * R + np.pi * R / (Nang + 1) * (1 - (r_d / R_d) ** 2) ** 0.5
+        r_min = r_d / R_d * R - np.pi * R / (Nang + 1) * (1 - (r_d / R_d) ** 2) ** 0.5
+        R_folded = r_max
+        R_folded[1::2, :] = r_min[1::2, :]
+        X = (R_folded * np.cos(Theta)).T
+        Z = (R_folded * np.sin(Theta)).T
+        Y = (-(R_d - R) * (1 - (r_d / R_d) ** 2) ** 0.5).T * 0
+        return X, Y, Z
+
+    def computeBandShape(self, rd, bandRes, angRes, band1, band2, disk):
+        Nang = angRes
+        r = disk
+        r_d = rd
+        R_d = r
+        r_max = r_d / R_d * r + np.pi * r / (Nang + 1) * (1 - (r_d / R_d) ** 2) ** 0.5
+        r_min = r_d / R_d * r - np.pi * r / (Nang + 1) * (1 - (r_d / R_d) ** 2) ** 0.5
+        theta = np.linspace(0, np.pi * 2, Nang + 1)
+        theta = theta[:-1].copy()
+        x = r_max * np.cos(theta)
+        z = r_max * np.sin(theta)
+        x[1::2] = (r_min * np.cos(theta))[1::2]
+        z[1::2] = (r_min * np.sin(theta))[1::2]
+        y = np.linspace(band1, band2, bandRes)
+        X, Y = np.meshgrid(x, y)
+        Z, Y = np.meshgrid(z, y)
+        return X, Y, Z
+
     def plot(self, frame):
         plt.figure(figsize=(6, 5))
         ax = plt.axes(projection='3d')
@@ -1093,7 +1231,8 @@ class Parachute:
 
         plt.colorbar(scamap, orientation='vertical', label='Radial Stress [Mpa]', fraction=0.046, pad=0.04)
         plt.savefig('frames/' + str(frame) + '.png', dpi=400)
-        # plt.show()
+
+        #plt.show()
         plt.close()
 
     def plotDrag(self, frame, time, Drag):
@@ -1162,15 +1301,22 @@ class Parachute:
 
     def computeDragSus(self):
         Drag = 0
-
         for Susline in self.SuspensionLines:
             line = Susline[-1]
-            dXN = line.X[-1] - line.X[-2]
-            dYN = line.Y[-1] - line.Y[-2]
-            dZN = line.Z[-1] - line.Z[-2]
+            XN, XS = np.roll(line.X, -1, 0), np.roll(line.X, 1, 0)
+            YN, YS = np.roll(line.Y, -1, 0), np.roll(line.Y, 1, 0)
+            ZN, ZS = np.roll(line.Z, -1, 0), np.roll(line.Z, 1, 0)
+            dXN, dXS = XN - line.X, XS - line.X
+            dYN, dYS = YN - line.Y, YS - line.Y
+            dZN, dZS = ZN - line.Z, ZS - line.Z
+            dXN[-1] = dXN[-2]
+            dYN[-1] = dYN[-2]
+            dZN[-1] = dZN[-2]
+            dXN = np.average(dXN)
+            dYN = np.average(dYN)
+            dZN = np.average(dZN)
             LN = (dXN ** 2 + dYN ** 2 + dZN ** 2) ** 0.5
-            dLN = LN - line.LN0[-2]
-            Drag += Fe(np.where(LN - line.LN0[-2] < 0, 0, LN - line.LN0[-2]), line.ECoeff) / line.LN0[-2] * dYN / LN
+            Drag += Fe(np.where(LN - np.average(line.LN0[:-2]) < 0, 0, LN - np.average(line.LN0[:-2])), line.ECoeff) * dYN / LN
 
         return Drag
 
@@ -1296,7 +1442,7 @@ class Parachute:
         return [nX, nY, nZ, dXNS, dYNS, dZNS]
 
     def stitch(self, part, line, index, orientation):
-        C = 1
+        C = 0.01
         if orientation == 1:
             dXN = line.X[1] - line.X[0]
             dYN = line.Y[1] - line.Y[0]
@@ -1328,17 +1474,17 @@ class Parachute:
             dZSW = part.Z[-2, index - 1] - part.Z[-1, index]
             LSW = (dXSW ** 2 + dYSW ** 2 + dZSW ** 2) ** 0.5
             LSW0 = part.LSE0[-1, index]
-            FN = Fe(LN - LN0, line.ECoeff) / LN0
-            FS = Fe(LS - LS0, part.ECoeffAx) / LS0 * 0.5 * (LE0 + LW0)
-            FS += Fe(LS - LS0, part.ECoeffReinf) / LS0 * 0.5 * (LE0 + LW0)
-            FE = Fe(LE - LE0, part.ECoeffAx) / LE0 * 0.5 * (LN0 + LS0)
-            FE += Fe(LE - LE0, part.ECoeffReinf) / LE0 * 0.5 * (LN0 + LS0)
-            FW = Fe(LW - LW0, part.ECoeffAx) / LW0 * 0.5 * (LN0 + LS0)
-            FW += Fe(LW - LW0, part.ECoeffReinf) / LW0 * 0.5 * (LN0 + LS0)
-            FSE = Fe(LSE - LSE0, part.ECoeffDiag) / LSE0 * 0.5 * (LSW0 + LSW0)
-            FSE += Fe(LSE - LSE0, part.ECoeffReinfDiag) / LSE0 * 0.5 * (LSW0 + LSW0)
-            FSW = Fe(LSW - LSW0, part.ECoeffDiag) / LSW0 * 0.5 * (LSE0 + LSE0)
-            FSW += Fe(LSW - LSW0, part.ECoeffReinfDiag) / LSW0 * 0.5 * (LSE0 + LSE0)
+            FN = Fe(LN / LN0 - 1, line.ECoeff)
+            FS = Fe(LS / LS0 - 1, part.ECoeffAx) * 0.5 * (LE0 + LW0)
+            FS += Fe(LS / LS0 - 1, part.ECoeffReinf) * 0.5 * (LE0 + LW0)
+            FE = Fe(LE / LE0 - 1, part.ECoeffAx) * 0.5 * (LN0 + LS0)
+            FE += Fe(LE / LE0 - 1, part.ECoeffReinf) * 0.5 * (LN0 + LS0)
+            FW = Fe(LW / LW0 - 1, part.ECoeffAx) * 0.5 * (LN0 + LS0)
+            FW += Fe(LW / LW0 - 1, part.ECoeffReinf) * 0.5 * (LN0 + LS0)
+            FSE = Fe(LSE / LSE0 - 1, part.ECoeffDiag) * 0.5 * (LSW0 + LSW0)
+            FSE += Fe(LSE / LSE0 - 1, part.ECoeffReinfDiag) * 0.5 * (LSW0 + LSW0)
+            FSW = Fe(LSW / LSW0 - 1, part.ECoeffDiag) * 0.5 * (LSE0 + LSE0)
+            FSW += Fe(LSW / LSW0 - 1, part.ECoeffReinfDiag) * 0.5 * (LSE0 + LSE0)
             # if LN == 0: LN = 1
             # if LS == 0: LS = 1
             # if LE == 0: LE = 1
@@ -1383,17 +1529,17 @@ class Parachute:
             dZNW = part.Z[1, index - 1] - part.Z[0, index]
             LNW = (dXNW ** 2 + dYNW ** 2 + dZNW ** 2) ** 0.5
             LNW0 = part.LNW0[0, index]
-            FN = Fe(LN - LN0, part.ECoeffAx) / LN0 * 0.5 * (LE0 + LW0)
-            FN += Fe(LN - LN0, part.ECoeffReinf) / LN0 * 0.5 * (LE0 + LW0)
-            FS = Fe(LS - LS0, line.ECoeff) / LS0
-            FE = Fe(LE - LE0, part.ECoeffAx) / LE0 * 0.5 * (LN0 + LS0)
-            FE += Fe(LE - LE0, part.ECoeffReinf) / LE0 * 0.5 * (LN0 + LS0)
-            FW = Fe(LW - LW0, part.ECoeffAx) / LW0 * 0.5 * (LN0 + LS0)
-            FW += Fe(LW - LW0, part.ECoeffReinf) / LW0 * 0.5 * (LN0 + LS0)
-            FNE = Fe(LNE - LNE0, part.ECoeffDiag) / LNE0 * 0.5 * (LNW0 + LNW0)
-            FNE += Fe(LNE - LNE0, part.ECoeffReinfDiag) / LNE0 * 0.5 * (LNW0 + LNW0)
-            FNW = Fe(LNW - LNW0, part.ECoeffDiag) / LNW0 * 0.5 * (LNE0 + LNE0)
-            FNW += Fe(LNW - LNW0, part.ECoeffReinfDiag) / LNW0 * 0.5 * (LNE0 + LNE0)
+            FN = Fe(LN / LN0 - 1, part.ECoeffAx) * 0.5 * (LE0 + LW0)
+            FN += Fe(LN / LN0 - 1, part.ECoeffReinf) * 0.5 * (LE0 + LW0)
+            FS = Fe(LS / LS0 - 1, line.ECoeff)
+            FE = Fe(LE / LE0 - 1, part.ECoeffAx) * 0.5 * (LN0 + LS0)
+            FE += Fe(LE / LE0 - 1, part.ECoeffReinf) * 0.5 * (LN0 + LS0)
+            FW = Fe(LW / LW0 - 1, part.ECoeffAx) * 0.5 * (LN0 + LS0)
+            FW += Fe(LW / LW0 - 1, part.ECoeffReinf) * 0.5 * (LN0 + LS0)
+            FNE = Fe(LNE / LNE0 - 1, part.ECoeffDiag) * 0.5 * (LNW0 + LNW0)
+            FNE += Fe(LNE / LNE0 - 1, part.ECoeffReinfDiag) * 0.5 * (LNW0 + LNW0)
+            FNW = Fe(LNW / LNW0 - 1, part.ECoeffDiag) * 0.5 * (LNE0 + LNE0)
+            FNW += Fe(LNW / LNW0 - 1, part.ECoeffReinfDiag) * 0.5 * (LNE0 + LNE0)
             # if LN == 0: LN = 1
             # if LS == 0: LS = 1
             # if LE == 0: LE = 1
@@ -1532,11 +1678,10 @@ class Parachute:
             if i % 10 == 0: print("Computing iteration", int(i))
             if i % step == 0:
                 time.append(i * dt)
-                Drag.append(self.computeDrag())
+                Drag.append(self.computeDragSus())
                 self.plotDrag(int(i / step), time, Drag)
                 self.plot(int(i / step))
-                self.saveSTL('SPEARIIChuteScaled_Closed')
-
+                self.saveSTL('RingSail')
             # if i % (3 * step):
             #     self.saveParachute('SPEARIIChuteScaled')
 
@@ -1756,7 +1901,8 @@ class Parachute:
         lineIndices = np.array(lineNumbers).argsort()
         lineNames = np.array(lineNames)[lineIndices]
         lineNames = lineNames.reshape((self.NumSus, int(len(lineNames) / (self.NumSus))))
-        # lineNames = np.flip(lineNames, 0)
+        #lineNames = np.flip(lineNames, 0)
+        print(lineNames)
 
         self.Disks = []
         self.Bands = []
@@ -1766,14 +1912,14 @@ class Parachute:
             X = np.zeros((4, 4))
             Y = np.zeros((4, 4))
             Z = np.zeros((4, 4))
-            disk = Canopy(X, Y, Z, self.CanopyMat, self.ReinfMat, self.SusMat, self.ReinfWidth, self.NumSus, self.NumGores, self.dp)
+            disk = Canopy(X, Y, Z, X, Y, Z, self.CanopyMat, self.ReinfMat, self.SusMat, self.ReinfWidth, self.NumSus, self.NumGores, self.dp)
             disk.open(name + '/' + diskName)
             self.Disks.append(disk)
         for bandName in bandNames:
             X = np.zeros((4, 4))
             Y = np.zeros((4, 4))
             Z = np.zeros((4, 4))
-            band = Canopy(X, Y, Z, self.CanopyMat, self.ReinfMat, self.SusMat, self.ReinfWidth, self.NumSus, self.NumGores, self.dp)
+            band = Canopy(X, Y, Z, X, Y, Z, self.CanopyMat, self.ReinfMat, self.SusMat, self.ReinfWidth, self.NumSus, self.NumGores, self.dp)
             band.open(name + '/' + bandName)
             self.Bands.append(band)
         for i in range(len(lineNames)):
@@ -1784,27 +1930,27 @@ class Parachute:
                 Line.append(line)
             self.SuspensionLines.append(Line)
 
-        for i in range(len(self.SuspensionLines)):
-            for j in range(len(self.Disks)):
-                self.SuspensionLines[i][j].X[0] = self.Disks[j].X[-1, self.Sus_Index[i]]
-                self.SuspensionLines[i][j].Y[0] = self.Disks[j].Y[-1, self.Sus_Index[i]]
-                self.SuspensionLines[i][j].Z[0] = self.Disks[j].Z[-1, self.Sus_Index[i]]
-                if j < len(self.Disks) - 1:
-                    self.SuspensionLines[i][j].X[-1] = self.Disks[j + 1].X[0, self.Sus_Index[i]]
-                    self.SuspensionLines[i][j].Y[-1] = self.Disks[j + 1].Y[0, self.Sus_Index[i]]
-                    self.SuspensionLines[i][j].Z[-1] = self.Disks[j + 1].Z[0, self.Sus_Index[i]]
-
-        offset = len(self.Disks)
-
-        for i in range(len(self.SuspensionLines)):
-            for j in range(len(self.Bands)):
-                self.SuspensionLines[i][j + offset].X[0] = self.Bands[j].X[-1, self.Sus_Index[i]]
-                self.SuspensionLines[i][j + offset].Y[0] = self.Bands[j].Y[-1, self.Sus_Index[i]]
-                self.SuspensionLines[i][j + offset].Z[0] = self.Bands[j].Z[-1, self.Sus_Index[i]]
-                if j < len(self.Bands) - 1:
-                    self.SuspensionLines[i][j + offset].X[-1] = self.Bands[j + 1].X[0, self.Sus_Index[i]]
-                    self.SuspensionLines[i][j + offset].Y[-1] = self.Bands[j + 1].Y[0, self.Sus_Index[i]]
-                    self.SuspensionLines[i][j + offset].Z[-1] = self.Bands[j + 1].Z[0, self.Sus_Index[i]]
+        # for i in range(len(self.SuspensionLines)):
+        #     for j in range(len(self.Disks)):
+        #         self.SuspensionLines[i][j].X[0] = self.Disks[j].X[-1, self.Sus_Index[i]]
+        #         self.SuspensionLines[i][j].Y[0] = self.Disks[j].Y[-1, self.Sus_Index[i]]
+        #         self.SuspensionLines[i][j].Z[0] = self.Disks[j].Z[-1, self.Sus_Index[i]]
+        #         if j < len(self.Disks) - 1:
+        #             self.SuspensionLines[i][j].X[-1] = self.Disks[j + 1].X[0, self.Sus_Index[i]]
+        #             self.SuspensionLines[i][j].Y[-1] = self.Disks[j + 1].Y[0, self.Sus_Index[i]]
+        #             self.SuspensionLines[i][j].Z[-1] = self.Disks[j + 1].Z[0, self.Sus_Index[i]]
+        #
+        # offset = len(self.Disks)
+        #
+        # for i in range(len(self.SuspensionLines)):
+        #     for j in range(len(self.Bands)):
+        #         self.SuspensionLines[i][j + offset].X[0] = self.Bands[j].X[-1, self.Sus_Index[i]]
+        #         self.SuspensionLines[i][j + offset].Y[0] = self.Bands[j].Y[-1, self.Sus_Index[i]]
+        #         self.SuspensionLines[i][j + offset].Z[0] = self.Bands[j].Z[-1, self.Sus_Index[i]]
+        #         if j < len(self.Bands) - 1:
+        #             self.SuspensionLines[i][j + offset].X[-1] = self.Bands[j + 1].X[0, self.Sus_Index[i]]
+        #             self.SuspensionLines[i][j + offset].Y[-1] = self.Bands[j + 1].Y[0, self.Sus_Index[i]]
+        #             self.SuspensionLines[i][j + offset].Z[-1] = self.Bands[j + 1].Z[0, self.Sus_Index[i]]
 
     def importP(self, outputPfile, resolution, bounds):
 
@@ -1826,7 +1972,7 @@ class Parachute:
 
         # P = np.flip(P, 2)
 
-        plt.imshow(P[50, :, :])
+        plt.imshow(P[75, :, :])
         plt.colorbar(orientation='horizontal')
         plt.show()
 
@@ -1849,34 +1995,62 @@ class Parachute:
             band.dP = -dP
 
 
-RipNylon = Canopy_Material(2.7e6, 0.048, [15781 * 2, 506452 * 2], [100], 0.5e-3, 0.95)
-Aramid = Canopy_Material(3.4e6, 0.03, [21520, 150645.2], [0], 0.5e-3, 1)
-Spectra = Suspension_Material(1.1e7, 0.0027, [5380.3, -967333.5, 167075000], 4e-3)
+if __name__ == '__main__':
 
-Disks = [[0.072313 / 2, 1.038776 / 2]]
-# Disks = [[0.1,  0.3], [0.4,  0.6], [0.7,  0.9], [1,  1.2], [1.3,  1.5]]
-Bands = [[0.12111, 0.12111 + 0.170766]]
-# Bands = []
-Suspension_Length = 1.5
-Num_Suspension = 6
-Num_Gores = 6
-Reinforcement_Width = 12.5e-3
-# Disk_Resolution = [120]
-Disk_Resolution = [90]
-Band_Resolution = [30]
-Angular_Resolution = 216
-Sus_Resolution = [3, 15]
+    RipNylon = Canopy_Material(2.7e6, 0.048, [15781 * 1.2, 506452 * 1.2], [500], 0.5e-3, 0.95)
+    RipNylon = Canopy_Material(2.7e6, 0.048, [17936, 10549000], [100, 1054900], 0.5e-3, 1)
 
-initial_pressure = 970
+    ########### Non-linear Materials ###################
 
-T = 0.01
-Nt = 15000
-frames = 50
+    k = 0.2
+    RipNylon = Canopy_Material(2.7e6, 0.048, [16615 * (1 - k), 67021 * (1 - k)], [16615 *  k / 2, 67021 *  k / 2], 0.09e-3, 1)
+    Aramid = Canopy_Material(3.4e6, 0.03, [211985, 489633], [500], 0.43e-3, 1)
+    Spectra = Suspension_Material(1.1e7, 0.0027, [3064.2], 4e-3)
 
-parachute = Parachute(Disks, Bands, Num_Suspension, Num_Gores, Suspension_Length, Reinforcement_Width, Disk_Resolution, Band_Resolution, Sus_Resolution, Angular_Resolution,
-                      RipNylon,
-                      Spectra, Aramid, initial_pressure, 1.038776 / 2)
-parachute.importParachute('SPEARIIChuteScaled_Closed')
-parachute.importP('p', [100, 200, 100], [[-1.5, 1.5], [-3, 2], [-1.5, 1.5]])
-parachute.solver(T, Nt, frames)
-parachute.saveParachute('SPEARIIChuteScaled_Closed')
+    # ########### Linear Materials ###################
+    #
+    # k = 0.1
+    # RipNylon = Canopy_Material(2.7e6, 0.048, [16615 * (1 - k)], [16615 *  k / 2], 0.09e-3, 1)
+    # Aramid = Canopy_Material(3.4e6, 0.03, [211985], [500], 0.43e-3, 1)
+    # Spectra = Suspension_Material(1.1e7, 0.0027, [3961.9], 4e-3)
+
+    # ################# Stratos IV Parachute ###################
+    #
+    # Disks = [[0.1 / 2, 1.0036 / 2]]
+    # Bands = [[0.062, 0.062 + 0.293]]
+
+
+    ################# Walrus Parachute ##################
+
+    # Disks = [[0.17 / 2, 1.3 / 2]]
+    # Bands = [[0.085, 0.085 + 0.4]]
+
+    ################ RingSail Parachute ##################
+
+    Disks = [[0.0681, 0.1563], [0.1791, 0.2922], [0.315, 0.4284], [0.455, 0.5643], [0.59, 0.6774], [0.7, 0.7908], [0.81, 0.9042], [0.92, 1.0173], [1.0397, 1.176]]
+    Disks = np.array(Disks) / np.pi * 4 / 3
+    Bands = []
+
+    Suspension_Length = 1.15
+    Num_Suspension = 8
+    Num_Gores = 8
+    Reinforcement_Width = 25e-3
+    # Disk_Resolution = [120]
+    Disk_Resolution = [5, 5, 5, 5, 5, 5, 5, 5, 5]
+    Band_Resolution = []
+    Angular_Resolution = 160
+    Sus_Resolution = [3, 3, 3, 3, 3, 3, 3, 3, 10]
+
+    initial_pressure = 1370
+
+    T = 0.005
+    Nt = 22500
+    frames = 25
+
+    parachute = Parachute(Disks, Bands, Num_Suspension, Num_Gores, Suspension_Length, Reinforcement_Width, Disk_Resolution, Band_Resolution, Sus_Resolution, Angular_Resolution,
+                          RipNylon,
+                          Spectra, Aramid, initial_pressure, 1.176 / np.pi * 4 / 3)
+    parachute.importParachute('RingSail')
+    parachute.importP('p', [150, 200, 150], [[-1, 1], [-2, 2], [-1, 1]])
+    parachute.solver(T, Nt, frames)
+    parachute.saveParachute('RingSail')
