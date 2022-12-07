@@ -5,8 +5,47 @@ import Parachute3D
 from scipy import interpolate
 
 
+def importU(outputUfile, resolution, bounds):
+    """
+    This function imports the velocity and pressure data from the OpenFOAM simulation of the previously-deformed fishing net geometry
+    :param outputUfile: the OpenFOAM log file containing the velocity and pressure fields surrounding the net
+    :param netfile: the CSV file containing the previous geometry of the fishing net
+    :param resolution: the resolution of the computational domain used in OpenFOAM
+    :param bounds: the bounds of the computational domain used in OpenFOAM
+    :return: N/A
+    """
 
-def plotParachute(parachute):
+    file = open(outputUfile)
+    lines = file.readlines()
+    Ux = []
+    Uy = []
+    Uz = []
+    for i in range(23, len(lines) - 22530):
+        line = lines[i]
+        values = line.strip('\n').strip(')').strip('(').split(' ')
+        Ux.append(float(values[0]))
+        Uy.append(float(values[1]))
+        Uz.append(float(values[2]))
+
+    Ux = np.array(Ux).reshape((resolution[2], resolution[1], resolution[0]))
+    Uy = np.array(Uy).reshape((resolution[2], resolution[1], resolution[0]))
+    Uz = np.array(Uz).reshape((resolution[2], resolution[1], resolution[0]))
+    U = (Ux**2 + Uy**2 + Uz**2)**0.5
+
+    x = np.linspace(bounds[0][0], bounds[0][1], resolution[1])
+    y = np.linspace(bounds[1][0], bounds[1][1], resolution[0])
+    z = np.linspace(bounds[2][0], bounds[2][1], resolution[2])
+
+    Z, Y, X = np.meshgrid(x, y, z)
+
+    plt.imshow(U[int(resolution[2]/2), :, :])
+    plt.colorbar(orientation='horizontal')
+    plt.show()
+
+    return X, Y, Z, Ux, Uy, Uz
+
+
+def plotParachute(parachute, xu, yu, zu, Ux, Uy, Uz):
 
     factor = 1
 
@@ -85,10 +124,11 @@ def plotParachute(parachute):
         StressVM = np.where(StressVM < minStressVM / factor, minStressVM / factor, StressVM)
         StressVM = np.where(StressVM > maxStressVM * factor, maxStressVM * factor, StressVM)
 
-        Dmesh = mlab.mesh(X, Y, Z, scalars=StressVM / 10**6, colormap='jet')
+        #Dmesh = mlab.mesh(X, Y, Z, scalars=StressVM / 10**6, colormap='jet')
+        Dmesh = mlab.mesh(X, Y, Z, scalars = np.ones(StressVM.shape) * 0.1, colormap='Greys')
         Dmesh.actor.property.interpolation = 'phong'
-        Dmesh.actor.property.specular = 0.1
-        Dmesh.actor.property.specular_power = 5
+        Dmesh.actor.property.specular = 0.02
+        Dmesh.actor.property.specular_power = 0.5
 
     for band in parachute.Bands:
         X = band.X
@@ -163,14 +203,22 @@ def plotParachute(parachute):
         StressVM = np.where(StressVM < minStressVM / factor, minStressVM / factor, StressVM)
         StressVM = np.where(StressVM > maxStressVM * factor, maxStressVM * factor, StressVM)
 
-        Bmesh = mlab.mesh(X, Y, Z, scalars=StressVM / 10**6, colormap='jet')
+        #Bmesh = mlab.mesh(X, Y, Z, scalars=StressVM / 10**6, colormap='jet')
+        Bmesh = mlab.mesh(X, Y, Z, scalars = np.ones(StressVM.shape) * 0.1, colormap='Greys')
         Bmesh.actor.property.interpolation = 'phong'
-        Bmesh.actor.property.specular = 0.1
-        Bmesh.actor.property.specular_power = 5
+        Bmesh.actor.property.specular = 0.02
+        Bmesh.actor.property.specular_power = 0.5
     for sus_line in parachute.SuspensionLines:
         for line in sus_line:
             l = mlab.plot3d(line.X, line.Y, line.Z, tube_radius=0.0025)
 
+    length = xu.shape[0]
+    # Bmesh2 = mlab.mesh(xu[int(length / 2), :, :], zu[int(length / 2), :, :], yu[int(length / 2), :, :], scalars=((Ux**2 + Uy**2 + Uz**2)**0.5 / 10 ** 6)[int(length / 2), :, :], colormap='jet')
+    # Bmesh2.actor.property.interpolation = 'phong'
+    # Bmesh2.actor.property.specular = 0.1
+    # Bmesh2.actor.property.specular_power = 5
+    # Bmesh2.actor.property.opacity = 0.6
+    # mlab.scalarbar(Bmesh2)
     mlab.show()
 
 
@@ -200,7 +248,7 @@ if __name__ == '__main__':
     # Disks = [[0.17 / 2, 1.3 / 2]]
     # Bands = [[0.085, 0.085 + 0.4]]
 
-    Suspension_Length = 1.328
+    Suspension_Length = 3.1
     Num_Suspension = 18
     Num_Gores = 6
     Reinforcement_Width = 25e-3
@@ -213,7 +261,7 @@ if __name__ == '__main__':
     parachute = Parachute3D.Parachute(Disks, Bands, Num_Suspension, Num_Gores, Suspension_Length, Reinforcement_Width, Disk_Resolution, Band_Resolution, Sus_Resolution, Angular_Resolution,
                           RipNylon,
                           Spectra, Aramid, 500, 1.0036 / 2)
-    parachute.importParachute('StratosIVNonLinear')
-
-    plotParachute(parachute)
+    parachute.importParachute('WALRUS_0')
+    x, y, z, Ux, Uy, Uz = importU('U_WALRUS_Frame3', [150, 225, 150], [[-2, 4], [-2, 2], [-2, 2]])
+    plotParachute(parachute, x, y, z, Ux, Uy, Uz)
 

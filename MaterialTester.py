@@ -165,10 +165,10 @@ class Sample:
             FE = par.Fe(LE / self.LE0 - 1, self.ECoeffAx) * 0.5 * (self.LN0 + self.LS0)
             FW = par.Fe(LW / self.LW0 - 1, self.ECoeffAx) * 0.5 * (self.LN0 + self.LS0)
 
-            FNE = par.Fe(LNE - self.LNE0, self.ECoeffDiag) * 0.5 * (self.LNW0 + self.LSE0) / self.LNE0
-            FNW = par.Fe(LNW - self.LNW0, self.ECoeffDiag) * 0.5 * (self.LNE0 + self.LSW0) / self.LNW0
-            FSE = par.Fe(LSE - self.LSE0, self.ECoeffDiag) * 0.5 * (self.LNE0 + self.LSW0) / self.LSE0
-            FSW = par.Fe(LSW - self.LSW0, self.ECoeffDiag) * 0.5 * (self.LNW0 + self.LSE0) / self.LSW0
+            FNE = par.Fe(LNE / self.LNE0 - 1, self.ECoeffDiag) * 0.5 * (self.LNW0 + self.LSE0)
+            FNW = par.Fe(LNW / self.LNW0 - 1, self.ECoeffDiag) * 0.5 * (self.LNE0 + self.LSW0)
+            FSE = par.Fe(LSE / self.LSE0 - 1, self.ECoeffDiag) * 0.5 * (self.LNE0 + self.LSW0)
+            FSW = par.Fe(LSW / self.LSW0 - 1, self.ECoeffDiag) * 0.5 * (self.LNW0 + self.LSE0)
             FNN = par.Fe((LNN / self.LNN0 - 1), self.ECoeffAx) * ((self.LE0 + self.LW0) / self.LNN0) / 10000
             FSS = par.Fe((LSS / self.LSS0 - 1), self.ECoeffAx) * ((self.LE0 + self.LW0) / self.LSS0) / 10000
             FEE = par.Fe((LEE / self.LEE0 - 1), self.ECoeffAx) * ((self.LN0 + self.LS0) / self.LEE0) / 10000
@@ -433,7 +433,7 @@ class Sample:
         #         ax.plot3D([X[i][j], X[i][j] + self.nX[i][j]*0.1], [Y[i][j], Y[i][j] + self.nY[i][j]*0.1], [Z[i][j], Z[i][j] + self.nZ[i][j]*0.1], 'red', linewidth = 0.4)
         ax.view_init(elev=90., azim=90)
 
-k = 0.1
+k = 0.2
 RipNylon = par.Canopy_Material(2.7e6, 0.048, [23202 * (1 - k), 49578 * (1 - k), -153205 * (1 - k)], [23202 * k / 2, 49578 * k / 2, -153205 * k / 2], 0.09e-3, 1)
 RipNylon = par.Canopy_Material(2.7e6, 0.048, [30006 * (1 - k), -18936 * (1 - k)], [ 30006 * k / 2, -18936 * k / 2], 0.09e-3, 1)
 #RipNylon = par.Canopy_Material(2.7e6, 0.048, [1300], [5022], 0.09e-3, 1)

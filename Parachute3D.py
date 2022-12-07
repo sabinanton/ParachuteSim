@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy import interpolate
 from stl import mesh
+import time as ti
 
 
 def createNeighbours(X):
@@ -32,7 +33,7 @@ def Fe(X, const):
     Force = np.zeros(X.shape)
     sgn = np.sign(X)
     for i in range(len(const)):
-        Force += const[i] * np.abs(X) ** (i+1)
+        Force += const[i] * np.abs(X) ** (i + 1)
     Force *= sgn
     return Force
 
@@ -130,7 +131,6 @@ class Canopy:
         self.LSS0 = (dXSS ** 2 + dYSS ** 2 + dZSS ** 2) ** 0.5
         self.LEE0 = (dXEE ** 2 + dYEE ** 2 + dZEE ** 2) ** 0.5
         self.LWW0 = (dXWW ** 2 + dYWW ** 2 + dZWW ** 2) ** 0.5
-
 
         self.LNE0[-1, :] = self.LNE0[-2, :]
         self.LNW0[-1, :] = self.LNW0[-2, :]
@@ -231,7 +231,7 @@ class Canopy:
         self.nY = nY
         self.nZ = nZ
 
-    def Sp(self):
+    def Sp(self, index):
 
         """
         This function calculates the hydrodynamic forces on the discretized fishing net based on the pressure difference induced by the water flow
@@ -309,14 +309,15 @@ class Canopy:
         S[0, :] = S[1, :]
 
         rho = self.rho
-
-        Fx = S * self.dP * nX
-        Fy = S * self.dP * nY
-        Fz = S * self.dP * nZ
+        delta_p = 15
+        np.random.seed(int(index))
+        Fx = S * (self.dP + (2 * np.random.randn(1) - 1) * delta_p) * nX
+        Fy = S * (self.dP + (2 * np.random.randn(1) - 1) * delta_p) * nY
+        Fz = S * (self.dP + (2 * np.random.randn(1) - 1) * delta_p) * nZ
 
         return Fx, Fy, Fz, 0, 0, 0
 
-    def getAcc(self, Fixed, dt):
+    def getAcc(self, Fixed, index, S_avg):
 
         """
         This function computes the acceleration and performs the forward Euler time integration of every point in the discretized net
@@ -338,8 +339,9 @@ class Canopy:
         Vz = self.Vz
         g0 = 0
         gz = np.ones(self.M.shape) * g0
-        C = 1 / X.shape[0] / X.shape[1]
-        CGl = 2 / X.shape[0] / X.shape[1]
+        S = (self.LN0 + self.LS0) * (self.LE0 + self.LW0) / 4
+        C = 5 / X.shape[0] / X.shape[1] * S / S_avg
+        CGl = 8.2 / X.shape[0] / X.shape[1] * S / S_avg
 
         XN, XS, XE, XW, XNE, XNW, XSE, XSW, XNN, XSS, XEE, XWW = createNeighbours(X)
         YN, YS, YE, YW, YNE, YNW, YSE, YSW, YNN, YSS, YEE, YWW = createNeighbours(Y)
@@ -368,7 +370,6 @@ class Canopy:
         dVXNN, dVXSS, dVXEE, dVXWW = VXNN - Vx, VXSS - Vx, VXEE - Vx, VXWW - Vx
         dVYNN, dVYSS, dVYEE, dVYWW = VYNN - Vy, VYSS - Vy, VYEE - Vy, VYWW - Vy
         dVZNN, dVZSS, dVZEE, dVZWW = VZNN - Vz, VZSS - Vz, VZEE - Vz, VZWW - Vz
-
 
         LN = (dXN ** 2 + dYN ** 2 + dZN ** 2) ** 0.5
         LS = (dXS ** 2 + dYS ** 2 + dZS ** 2) ** 0.5
@@ -418,10 +419,10 @@ class Canopy:
         FNW = Fe(LNW / self.LNW0 - 1, self.ECoeffDiag) * 0.5 * (self.LNE0 + self.LSW0)
         FSE = Fe(LSE / self.LSE0 - 1, self.ECoeffDiag) * 0.5 * (self.LNE0 + self.LSW0)
         FSW = Fe(LSW / self.LSW0 - 1, self.ECoeffDiag) * 0.5 * (self.LNW0 + self.LSE0)
-        FNN = 0#Fe((LNN / self.LNN0) - 1, self.ECoeffAx) * ((self.LE0 + self.LW0)) / 100
-        FSS = 0#Fe((LSS / self.LSS0) - 1, self.ECoeffAx) * ((self.LE0 + self.LW0)) / 100
-        FEE = 0#Fe((LEE / self.LEE0) - 1, self.ECoeffAx) * ((self.LN0 + self.LS0)) / 100
-        FWW = 0#Fe((LWW / self.LWW0) - 1, self.ECoeffAx) * ((self.LN0 + self.LS0)) / 100
+        FNN = 0  # Fe((LNN / self.LNN0) - 1, self.ECoeffAx) * ((self.LE0 + self.LW0)) / 100
+        FSS = 0  # Fe((LSS / self.LSS0) - 1, self.ECoeffAx) * ((self.LE0 + self.LW0)) / 100
+        FEE = 0  # Fe((LEE / self.LEE0) - 1, self.ECoeffAx) * ((self.LN0 + self.LS0)) / 100
+        FWW = 0  # Fe((LWW / self.LWW0) - 1, self.ECoeffAx) * ((self.LN0 + self.LS0)) / 100
 
         RNumWidthNS = max(int(self.RWidth / (np.average((self.LE0 + self.LW0) * 0.5))), 1) + 1
         RNumWidthEW = max(int(self.RWidth / (np.average((self.LN0 + self.LS0) * 0.5))), 1) + 1
@@ -456,10 +457,10 @@ class Canopy:
 
         Sus_Index = self.Sus_Index
         Gore_Index = self.Gore_Index
-        #print(Gore_Index)
+        # print(Gore_Index)
         for i in Gore_Index:
-            im = min(i - 1, int(i - RNumWidthEW / 2)) #% len(FE[0])
-            ip = max(i + 1, int(i + RNumWidthEW / 2)) #% len(FE[0])
+            im = min(i - 1, int(i - RNumWidthEW / 2))  # % len(FE[0])
+            ip = max(i + 1, int(i + RNumWidthEW / 2))  # % len(FE[0])
             if im < 0 and ip > 0:
                 FE[:, im:] += (Fe(LE / self.LE0 - 1, self.ECoeffReinf) * 0.5 * (self.LN0 + self.LS0))[:, im:]
                 FW[:, im:] += (Fe(LW / self.LW0 - 1, self.ECoeffReinf) * 0.5 * (self.LN0 + self.LS0))[:, im:]
@@ -501,8 +502,8 @@ class Canopy:
                 # FEE[:, im:ip] += (Fe(LEE / self.LEE0 - 1, self.ECoeffReinf) * (self.LNN0 + self.LSS0))[:, im:ip] / 50
                 # FWW[:, im:ip] += (Fe(LWW / self.LWW0 - 1, self.ECoeffReinf) * (self.LNN0 + self.LSS0))[:, im:ip] / 50
                 self.Color[:, im:ip] = 1
-            #FN[:, i] += (Fe(LN - self.LN0, self.ECoeffSus) / self.LN0)[:, i]
-            #FS[:, i] += (Fe(LS - self.LS0, self.ECoeffSus) / self.LS0)[:, i]
+            # FN[:, i] += (Fe(LN - self.LN0, self.ECoeffSus) / self.LN0)[:, i]
+            # FS[:, i] += (Fe(LS - self.LS0, self.ECoeffSus) / self.LS0)[:, i]
 
         # print(FE[2])
         # print(self.M[2])
@@ -527,7 +528,7 @@ class Canopy:
         dVSW[0] = 0
         dVSS[0], dVSS[1] = 0, 0
 
-        Dx, Dy, Dz, Lx, Ly, Lz = self.Sp()
+        Dx, Dy, Dz, Lx, Ly, Lz = self.Sp(index)
         Ax = 1 / self.M * (FN * dXN / LN + FS * dXS / LS + FE * dXE / LE + FW * dXW / LW +
                            FNE * dXNE / LNE + FNW * dXNW / LNW +
                            FSE * dXSE / LSE + FSW * dXSW / LSW +
@@ -609,11 +610,11 @@ class Canopy:
         StressEW[0, :] = StressEW[1, :].copy()
         StressEW[-1, :] = StressEW[-2, :].copy()
 
-        StressVM = ((StressEW - StressNS)**2 * 0.5)**0.5
+        StressVM = ((StressEW - StressNS) ** 2 * 0.5) ** 0.5
 
         fcolors = scamap.to_rgba(StressVM / 10 ** 6)
         zoom_factor = 0.5
-        #surface = ax.plot_surface(X, Y, Z, rstride=1, cstride=1, facecolors=fcolors, lw=0.6, antialiased=True, vmin=np.min(StressVM) / zoom_factor, vmax=np.max(StressVM) * zoom_factor)
+        # surface = ax.plot_surface(X, Y, Z, rstride=1, cstride=1, facecolors=fcolors, lw=0.6, antialiased=True, vmin=np.min(StressVM) / zoom_factor, vmax=np.max(StressVM) * zoom_factor)
 
         # for i in range(0, len(X), 2):
         #     for j in range(0, len(X[0]), 2):
@@ -900,8 +901,8 @@ class Rope:
         Vz = self.Vz
         g0 = 0
         gz = np.ones(self.M.shape) * g0
-        C = 1 / self.X.shape[0]
-        CGl = 1 / self.X.shape[0]
+        C = 0.2 / self.X.shape[0]
+        CGl = 0.2 / self.X.shape[0]
 
         XN, XS = np.roll(self.X, -1, 0), np.roll(self.X, 1, 0)
         YN, YS = np.roll(self.Y, -1, 0), np.roll(self.Y, 1, 0)
@@ -1129,19 +1130,28 @@ class Parachute:
         self.rd = closed_radius
 
         ratio = 1
+        S_average = 0
+        N_average = 0
 
         for i in range(len(disks)):
-            Xui, Yui, Zui = self.computeDiskShape(disks[-1][1], disk_res[i], ang_res, disks[i][0], disks[i][1], disks[-1][1])
+            Xui, Yui, Zui = self.computeDiskShape(self.rd, disk_res[i], ang_res, disks[i][0], disks[i][1], disks[-1][1])
             X, Y, Z = self.computeDiskShape(self.rd, disk_res[i], ang_res, disks[i][0], disks[i][1], disks[-1][1])
             Disk = Canopy(Xui, Yui, Zui, X, Y, Z, canopy_material, reinforcement_material, sus_line_material, reinforcement, num_suspension, num_gores, dp_initial)
             self.Disks.append(Disk)
+            S_disk = np.average((Disk.LN0 + Disk.LS0) * (Disk.LE0 + Disk.LW0) / 4)
+            S_average = (S_average * N_average + S_disk * np.prod(np.shape(Disk.LN0))) / (N_average + np.prod(np.shape(Disk.LN0)))
+            N_average += np.prod(np.shape(Disk.LN0))
         for i in range(len(bands)):
             Xui, Yui, Zui = self.computeBandShape(disks[-1][1], band_res[i], ang_res, bands[i][0], bands[i][1], disks[-1][1])
             X, Y, Z = self.computeBandShape(self.rd, band_res[i], ang_res, bands[i][0], bands[i][1], disks[-1][1])
             Band = Canopy(Xui, Yui, Zui, X, Y, Z, canopy_material, reinforcement_material, sus_line_material, reinforcement, num_suspension, num_gores, dp_initial * ratio)
             self.Bands.append(Band)
+            S_disk = np.average((Band.LN0 + Band.LS0) * (Band.LE0 + Band.LW0) / 4)
+            S_average = (S_average * N_average + S_disk * np.prod(np.shape(Band.LN0))) / (N_average + np.prod(np.shape(Band.LN0)))
+            N_average += np.prod(np.shape(Band.LN0))
         Sus_Index = np.linspace(0, ang_res, num_suspension + 1)
         self.Sus_Index = np.array(Sus_Index, int)[:-1]
+        self.S_average = S_average
         for i in range(len(self.Sus_Index)):
             index = self.Sus_Index[i]
             sus_line = []
@@ -1191,7 +1201,7 @@ class Parachute:
         R_folded[1::2, :] = r_min[1::2, :]
         X = (R_folded * np.cos(Theta)).T
         Z = (R_folded * np.sin(Theta)).T
-        Y = (-(R_d - R) * (1 - (r_d / R_d) ** 2) ** 0.5).T * 0
+        Y = (-(R_d - R) * (1 - (r_d / R_d) ** 2) ** 0.5).T
         return X, Y, Z
 
     def computeBandShape(self, rd, bandRes, angRes, band1, band2, disk):
@@ -1232,7 +1242,7 @@ class Parachute:
         plt.colorbar(scamap, orientation='vertical', label='Radial Stress [Mpa]', fraction=0.046, pad=0.04)
         plt.savefig('frames/' + str(frame) + '.png', dpi=400)
 
-        #plt.show()
+        # plt.show()
         plt.close()
 
     def plotDrag(self, frame, time, Drag):
@@ -1556,17 +1566,17 @@ class Parachute:
 
         return AxD, AyD, AzD, AxS, AyS, AzS
 
-    def solveStep(self, dt):
+    def solveStep(self, dt, seed):
 
         AccDisks = []
         for i in range(len(self.Disks)):
             Fixed = np.ones(self.Disks[i].X.shape)
-            Ax, Ay, Az = self.Disks[i].getAcc(Fixed, dt)
+            Ax, Ay, Az = self.Disks[i].getAcc(Fixed, seed, self.S_average)
             AccDisks.append([Ax, Ay, Az])
         AccBands = []
         for i in range(len(self.Bands)):
             Fixed = np.ones(self.Bands[i].X.shape)
-            Ax, Ay, Az = self.Bands[i].getAcc(Fixed, dt)
+            Ax, Ay, Az = self.Bands[i].getAcc(Fixed, seed, self.S_average)
             AccBands.append([Ax, Ay, Az])
         AccSusLines = []
         for i in range(len(self.SuspensionLines)):
@@ -1673,17 +1683,26 @@ class Parachute:
         step = int(Nt / frames)
         time = []
         Drag = []
+        iter_time_old = ti.time()
         for i in range(Nt):
-            self.solveStep(dt)
-            if i % 10 == 0: print("Computing iteration", int(i))
+            self.solveStep(dt, i)
+            if i % step == 0:
+                iter_time_new = ti.time()
+                remaining_time = (iter_time_new - iter_time_old) * (Nt - i) / step
+                hours = int(remaining_time/3600)
+                minutes = int(remaining_time/60) - hours * 60
+                print("Computing iteration", int(i / step), "Remaining time left is", hours, "hours", minutes, "minutes")
+                iter_time_old = iter_time_new
             if i % step == 0:
                 time.append(i * dt)
                 Drag.append(self.computeDragSus())
                 self.plotDrag(int(i / step), time, Drag)
                 self.plot(int(i / step))
-                self.saveSTL('RingSail')
+                # self.saveSTL('WALRUS_'+str(int(i / step)))
+                # self.saveParachute('WALRUS_'+str(int(i / step)))
             # if i % (3 * step):
             #     self.saveParachute('SPEARIIChuteScaled')
+        self.saveDrag('RingSailTransient', time, Drag)
 
     def saveSTL(self, file):
 
@@ -1888,6 +1907,42 @@ class Parachute:
                 line = self.SuspensionLines[i][j]
                 line.save(name + '/Line' + str(i) + '_' + str(j))
 
+    def saveDrag(self, name, time, Drag):
+        matrix = np.array([time, Drag]).T
+        titles = ['Time [s]', 'Drag [N]']
+        self.saveCSV(name, titles, matrix, True)
+
+    def saveCSV(self, name, Titles, Matrix, withTitles):
+
+        """
+                This function saves arrays to a .csv file
+                :param name: (String) - the file name
+                :param Titles: (String[]) - the titles of the columns
+                :param Matrix: (float[][]) - the matrix of data
+                :param withTitles: (boolean) - True if titles should be saved
+                :return:
+        """
+
+        if len(Titles) != len(Matrix[0]):
+            print("Columns don't match with titles!!")
+        else:
+            f = open(name + ".csv", 'w+')
+            if withTitles:
+                for i in range(len(Titles)):
+                    if i < len(Titles) - 1:
+                        f.write(Titles[i] + ',')
+                    else:
+                        f.write(Titles[i])
+                f.write('\n')
+
+            for i in range(len(Matrix)):
+                for j in range(len(Matrix[i])):
+                    if j < len(Matrix[i]) - 1:
+                        f.write(str(Matrix[i][j]) + ',')
+                    else:
+                        f.write(str(Matrix[i][j]) + '\n')
+            f.close()
+
     def importParachute(self, name):
 
         files = os.listdir(name)
@@ -1901,7 +1956,7 @@ class Parachute:
         lineIndices = np.array(lineNumbers).argsort()
         lineNames = np.array(lineNames)[lineIndices]
         lineNames = lineNames.reshape((self.NumSus, int(len(lineNames) / (self.NumSus))))
-        #lineNames = np.flip(lineNames, 0)
+        # lineNames = np.flip(lineNames, 0)
         print(lineNames)
 
         self.Disks = []
@@ -1974,7 +2029,7 @@ class Parachute:
 
         plt.imshow(P[75, :, :])
         plt.colorbar(orientation='horizontal')
-        plt.show()
+        # plt.show()
 
         p = interpolate.RegularGridInterpolator((x, y, z), P, 'linear')
         for disk in self.Disks:
@@ -1985,6 +2040,7 @@ class Parachute:
             Pl = p((disk.X - d * disk.nX, disk.Y - d * disk.nY, disk.Z - d * disk.nZ))
             dP = Pu - Pl
             disk.dP = -dP
+            print(np.average(dP))
         for band in self.Bands:
             d = np.max([band.DFiber / 2, np.max([(bounds[0][1] - bounds[0][0]) / resolution[0],
                                                  (bounds[1][1] - bounds[1][0]) / resolution[1],
@@ -1993,17 +2049,16 @@ class Parachute:
             Pl = p((band.X - d * band.nX, band.Y - d * band.nY, band.Z - d * band.nZ))
             dP = Pu - Pl
             band.dP = -dP
-
+            print(np.average(dP))
 
 if __name__ == '__main__':
-
     RipNylon = Canopy_Material(2.7e6, 0.048, [15781 * 1.2, 506452 * 1.2], [500], 0.5e-3, 0.95)
     RipNylon = Canopy_Material(2.7e6, 0.048, [17936, 10549000], [100, 1054900], 0.5e-3, 1)
 
     ########### Non-linear Materials ###################
 
     k = 0.2
-    RipNylon = Canopy_Material(2.7e6, 0.048, [16615 * (1 - k), 67021 * (1 - k)], [16615 *  k / 2, 67021 *  k / 2], 0.09e-3, 1)
+    RipNylon = Canopy_Material(2.7e6, 0.048, [16615 * (1 - k), 67021 * (1 - k)], [16615 * k / 2, 67021 * k / 2], 0.09e-3, 1)
     Aramid = Canopy_Material(3.4e6, 0.03, [211985, 489633], [500], 0.43e-3, 1)
     Spectra = Suspension_Material(1.1e7, 0.0027, [3064.2], 4e-3)
 
@@ -2019,38 +2074,57 @@ if __name__ == '__main__':
     # Disks = [[0.1 / 2, 1.0036 / 2]]
     # Bands = [[0.062, 0.062 + 0.293]]
 
-
     ################# Walrus Parachute ##################
-
+    #
     # Disks = [[0.17 / 2, 1.3 / 2]]
     # Bands = [[0.085, 0.085 + 0.4]]
 
     ################ RingSail Parachute ##################
 
-    Disks = [[0.0681, 0.1563], [0.1791, 0.2922], [0.315, 0.4284], [0.455, 0.5643], [0.59, 0.6774], [0.7, 0.7908], [0.81, 0.9042], [0.92, 1.0173], [1.0397, 1.176]]
+    Disks = [[0.0681, 1.176]]
+    #Disks = [[0.05, 0.5]]
     Disks = np.array(Disks) / np.pi * 4 / 3
     Bands = []
 
+    # Ringsail Parachute
     Suspension_Length = 1.15
     Num_Suspension = 8
     Num_Gores = 8
-    Reinforcement_Width = 25e-3
-    # Disk_Resolution = [120]
-    Disk_Resolution = [5, 5, 5, 5, 5, 5, 5, 5, 5]
+    Disk_Resolution = [60]
     Band_Resolution = []
     Angular_Resolution = 160
-    Sus_Resolution = [3, 3, 3, 3, 3, 3, 3, 3, 10]
+    Sus_Resolution = [8]
+    # Stratos IV Parachute
+    # Suspension_Length = 2
+    # Num_Suspension = 18
+    # Num_Gores = 6
+    Reinforcement_Width = 25e-3
+    # Disk_Resolution = [120]
+    # Disk_Resolution = [50]
+    # Band_Resolution = [40]
+    # Angular_Resolution = 256
+    # Sus_Resolution = [10]
+    # WALRUS Parachute
+    # Suspension_Length = 2
+    # Num_Suspension = 18
+    # Num_Gores = 6
+    # Reinforcement_Width = 25e-3
+    # Disk_Resolution = [20]
+    # Band_Resolution = [20]
+    # Angular_Resolution = 144
+    # Sus_Resolution = [5]
 
-    initial_pressure = 1370
+    initial_pressure = 355
 
-    T = 0.005
-    Nt = 22500
-    frames = 25
+    T = 0.005 * 25
+    Nt = int(22500 * 25)
+    frames = 25 * 25
 
     parachute = Parachute(Disks, Bands, Num_Suspension, Num_Gores, Suspension_Length, Reinforcement_Width, Disk_Resolution, Band_Resolution, Sus_Resolution, Angular_Resolution,
                           RipNylon,
                           Spectra, Aramid, initial_pressure, 1.176 / np.pi * 4 / 3)
-    parachute.importParachute('RingSail')
-    parachute.importP('p', [150, 200, 150], [[-1, 1], [-2, 2], [-1, 1]])
+    #parachute.importParachute('StratosTransient14')
+    #parachute.importP('p', [100, 150, 100], [[-2, 2], [-2, 4], [-2, 2]])
     parachute.solver(T, Nt, frames)
-    parachute.saveParachute('RingSail')
+    parachute.saveParachute('RingsailTransient0')
+    parachute.saveSTL('RingsailTransient0')
